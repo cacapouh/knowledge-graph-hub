@@ -40,11 +40,11 @@ export default function Login({ onLogin }: LoginProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-foundry-950">
+    <div className="min-h-screen flex items-center justify-center bg-brand-950">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <Hexagon className="w-16 h-16 text-foundry-400 mb-4" />
-          <h1 className="text-3xl font-bold text-white">Foundry</h1>
+          <Hexagon className="w-16 h-16 text-brand-400 mb-4" />
+          <h1 className="text-3xl font-bold text-white">KG Hub</h1>
           <p className="text-gray-400 mt-2">Knowledge Graph & Data Platform</p>
         </div>
 
@@ -66,7 +66,7 @@ export default function Login({ onLogin }: LoginProps) {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
                 required
               />
             </div>
@@ -78,7 +78,7 @@ export default function Login({ onLogin }: LoginProps) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 focus:border-transparent outline-none"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               required
             />
           </div>
@@ -89,7 +89,7 @@ export default function Login({ onLogin }: LoginProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 focus:border-transparent outline-none"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               required
               minLength={6}
             />
@@ -98,7 +98,7 @@ export default function Login({ onLogin }: LoginProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-foundry-600 text-white rounded-lg font-medium hover:bg-foundry-700 transition-colors disabled:opacity-50"
+            className="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition-colors disabled:opacity-50"
           >
             {loading ? 'Loading...' : isRegister ? 'Register' : 'Sign In'}
           </button>
@@ -108,7 +108,7 @@ export default function Login({ onLogin }: LoginProps) {
             <button
               type="button"
               onClick={() => { setIsRegister(!isRegister); setError('') }}
-              className="text-foundry-600 font-medium hover:underline"
+              className="text-brand-600 font-medium hover:underline"
             >
               {isRegister ? 'Sign In' : 'Register'}
             </button>

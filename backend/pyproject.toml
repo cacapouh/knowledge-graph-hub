@@ -1,7 +1,7 @@
 [project]
-name = "foundry-backend"
+name = "kghub-backend"
 version = "0.1.0"
-description = "Palantir Foundry-inspired knowledge graph platform"
+description = "Knowledge graph hub platform for infrastructure management"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

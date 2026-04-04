@@ -32,7 +32,7 @@ export default function Projects() {
         <h1 className="text-2xl font-bold">Projects</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-foundry-600 text-white rounded-lg text-sm font-medium hover:bg-foundry-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Project
@@ -49,7 +49,7 @@ export default function Projects() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               required
             />
           </div>
@@ -58,12 +58,12 @@ export default function Projects() {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               rows={2}
             />
           </div>
           <div className="flex gap-3">
-            <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 bg-foundry-600 text-white rounded-lg text-sm font-medium hover:bg-foundry-700 disabled:opacity-50">
+            <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
               {createMutation.isPending ? 'Creating...' : 'Create'}
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100">
@@ -89,8 +89,8 @@ export default function Projects() {
               className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow"
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-foundry-100 rounded-lg">
-                  <FolderKanban className="w-5 h-5 text-foundry-600" />
+                <div className="p-2 bg-brand-100 rounded-lg">
+                  <FolderKanban className="w-5 h-5 text-brand-600" />
                 </div>
                 <h3 className="font-semibold">{project.name}</h3>
               </div>

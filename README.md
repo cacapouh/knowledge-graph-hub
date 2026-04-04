@@ -1,6 +1,6 @@
-# Foundry — Knowledge Graph & Data Platform
+# Knowledge Graph Hub
 
-Palantir Foundry にインスパイアされた、オントロジーベースの知識グラフ＆データプラットフォームです。
+オントロジーベースの知識グラフ＆データプラットフォームです。
 
 ## アーキテクチャ
 

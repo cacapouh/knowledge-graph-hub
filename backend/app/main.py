@@ -23,8 +23,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Foundry",
-    description="Palantir Foundry-inspired knowledge graph & data platform",
+    title="Knowledge Graph Hub",
+    description="Knowledge graph & data platform for infrastructure management",
     version="0.1.0",
     lifespan=lifespan,
 )

@@ -35,7 +35,7 @@ export default function OntologyPage() {
         <h1 className="text-2xl font-bold">Ontology</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-foundry-600 text-white rounded-lg text-sm font-medium hover:bg-foundry-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Object Type
@@ -73,7 +73,7 @@ export default function OntologyPage() {
               <input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value, api_name: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 outline-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                 required
               />
             </div>
@@ -82,7 +82,7 @@ export default function OntologyPage() {
               <input
                 value={formData.api_name}
                 onChange={(e) => setFormData({ ...formData, api_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 outline-none font-mono text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm"
                 required
               />
             </div>
@@ -92,7 +92,7 @@ export default function OntologyPage() {
             <select
               value={formData.project_id}
               onChange={(e) => setFormData({ ...formData, project_id: Number(e.target.value) })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               required
             >
               <option value="">Select...</option>
@@ -114,12 +114,12 @@ export default function OntologyPage() {
               <input
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-foundry-500 outline-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               />
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" disabled={createObjectType.isPending} className="px-4 py-2 bg-foundry-600 text-white rounded-lg text-sm font-medium hover:bg-foundry-700 disabled:opacity-50">
+            <button type="submit" disabled={createObjectType.isPending} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
               Create
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100">
@@ -154,7 +154,7 @@ export default function OntologyPage() {
               <p className="text-sm text-gray-500 mb-3 line-clamp-2">{ot.description || 'No description'}</p>
               <Link
                 to={`/ontology/explorer/${ot.id}`}
-                className="text-sm text-foundry-600 hover:underline font-medium"
+                className="text-sm text-brand-600 hover:underline font-medium"
               >
                 Explore Objects →
               </Link>

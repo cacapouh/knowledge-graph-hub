@@ -33,7 +33,7 @@ export default function ProjectDetail() {
   return (
     <div>
       <div className="mb-6">
-        <Link to="/projects" className="text-sm text-foundry-600 hover:underline">← Projects</Link>
+        <Link to="/projects" className="text-sm text-brand-600 hover:underline">← Projects</Link>
         <h1 className="text-2xl font-bold mt-2">{project.name}</h1>
         <p className="text-gray-500 mt-1">{project.description}</p>
       </div>

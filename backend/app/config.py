@@ -3,11 +3,11 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    app_name: str = "Foundry"
+    app_name: str = "KG Hub"
     debug: bool = False
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///./foundry.db"
+    database_url: str = "sqlite+aiosqlite:///./kghub.db"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin123"
     minio_secure: bool = False
-    minio_bucket: str = "foundry-datasets"
+    minio_bucket: str = "kghub-datasets"
 
     # Auth
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"

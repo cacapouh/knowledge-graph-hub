@@ -19,11 +19,11 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="flex flex-col w-64 bg-foundry-950 text-white">
+    <aside className="flex flex-col w-64 bg-brand-950 text-white">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-        <Hexagon className="w-8 h-8 text-foundry-400" />
-        <span className="text-xl font-bold tracking-tight">Foundry</span>
+        <Hexagon className="w-8 h-8 text-brand-400" />
+        <span className="text-xl font-bold tracking-tight">KG Hub</span>
       </div>
 
       {/* Navigation */}
@@ -36,7 +36,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-foundry-600/30 text-white'
+                  ? 'bg-brand-600/30 text-white'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`
             }

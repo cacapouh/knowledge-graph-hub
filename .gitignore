@@ -25,6 +25,9 @@ postgres_data/
 redis_data/
 minio_data/
 
+# Database
+*.db
+
 # PID files
 .backend.pid
 .frontend.pid

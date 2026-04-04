@@ -4,15 +4,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-foundry}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foundry_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-foundry}
+      POSTGRES_USER: ${POSTGRES_USER:-kghub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kghub_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-kghub}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-foundry}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kghub}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -51,7 +51,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-foundry}:${POSTGRES_PASSWORD:-foundry_secret}@postgres:5432/${POSTGRES_DB:-foundry}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kghub}:${POSTGRES_PASSWORD:-kghub_secret}@postgres:5432/${POSTGRES_DB:-kghub}
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}

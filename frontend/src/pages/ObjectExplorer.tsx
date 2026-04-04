@@ -72,7 +72,7 @@ export default function ObjectExplorer() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <Link to="/ontology" className="text-sm text-foundry-600 hover:underline">← Ontology</Link>
+        <Link to="/ontology" className="text-sm text-brand-600 hover:underline">← Ontology</Link>
         <div className="flex items-center gap-3 mt-2">
           {objectType && (
             <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style={{ backgroundColor: objectType.color }}>
@@ -91,7 +91,7 @@ export default function ObjectExplorer() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold">Properties</h2>
-            <button onClick={() => setShowAddProp(true)} className="text-foundry-600 hover:text-foundry-700">
+            <button onClick={() => setShowAddProp(true)} className="text-brand-600 hover:text-brand-700">
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -121,7 +121,7 @@ export default function ObjectExplorer() {
                 ))}
               </select>
               <div className="flex gap-2">
-                <button type="submit" className="px-3 py-1 bg-foundry-600 text-white rounded text-xs">Add</button>
+                <button type="submit" className="px-3 py-1 bg-brand-600 text-white rounded text-xs">Add</button>
                 <button type="button" onClick={() => setShowAddProp(false)} className="px-3 py-1 text-gray-500 text-xs">Cancel</button>
               </div>
             </form>
@@ -147,7 +147,7 @@ export default function ObjectExplorer() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold">Objects ({objects?.length ?? 0})</h2>
-            <button onClick={() => setShowCreateForm(true)} className="text-foundry-600 hover:text-foundry-700">
+            <button onClick={() => setShowCreateForm(true)} className="text-brand-600 hover:text-brand-700">
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -176,7 +176,7 @@ export default function ObjectExplorer() {
                 </div>
               ))}
               <div className="flex gap-2 pt-1">
-                <button type="submit" className="px-3 py-1 bg-foundry-600 text-white rounded text-xs">Create</button>
+                <button type="submit" className="px-3 py-1 bg-brand-600 text-white rounded text-xs">Create</button>
                 <button type="button" onClick={() => setShowCreateForm(false)} className="px-3 py-1 text-gray-500 text-xs">Cancel</button>
               </div>
             </form>
@@ -190,7 +190,7 @@ export default function ObjectExplorer() {
                   key={obj.id}
                   onClick={() => setSelectedObject(obj)}
                   className={`w-full text-left flex items-center justify-between p-3 rounded-lg text-sm transition-colors ${
-                    selectedObject?.id === obj.id ? 'bg-foundry-50 border border-foundry-200' : 'bg-gray-50 hover:bg-gray-100'
+                    selectedObject?.id === obj.id ? 'bg-brand-50 border border-brand-200' : 'bg-gray-50 hover:bg-gray-100'
                   }`}
                 >
                   <span className="font-medium truncate">{title}</span>
