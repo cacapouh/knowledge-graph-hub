@@ -276,9 +276,46 @@ export default function GraphView() {
     }
   }, [filteredObjects, objectTypes, setNodes])
 
+  // Base edges from data
+  const baseEdges = useMemo(
+    () => buildEdges(filteredLinks, linkTypes),
+    [filteredLinks, linkTypes],
+  )
+
+  // Apply highlight when a node is selected
   useEffect(() => {
-    setEdges(buildEdges(filteredLinks, linkTypes))
-  }, [filteredLinks, linkTypes, setEdges])
+    if (!selectedNode) {
+      setEdges(baseEdges)
+      return
+    }
+    const nodeId = selectedNode.id
+    setEdges(
+      baseEdges.map((e) => {
+        const connected = e.source === nodeId || e.target === nodeId
+        const baseColor = e.data?.edgeColor || '#6b7280'
+        return {
+          ...e,
+          animated: connected,
+          style: {
+            ...e.style,
+            strokeWidth: connected ? 4 : 1.5,
+            stroke: connected ? baseColor : `${baseColor}30`,
+          },
+          markerEnd: {
+            ...((e.markerEnd as any) || {}),
+            color: connected ? baseColor : `${baseColor}30`,
+          },
+          labelStyle: {
+            ...e.labelStyle,
+            fill: connected ? baseColor : `${baseColor}30`,
+            fontWeight: connected ? 700 : 400,
+            fontSize: connected ? 12 : 10,
+          },
+          zIndex: connected ? 10 : 0,
+        }
+      }),
+    )
+  }, [selectedNode, baseEdges, setEdges])
 
   const toggleNodeType = useCallback((typeId: number) => {
     setHiddenNodeTypes((prev) => {
