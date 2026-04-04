@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tutorial: サーバー管理ナレッジグラフ | Foundry</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    code { background: #f1f3f5; color: #1f2937; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    .nav-progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #4c6ef5, #7c3aed); z-index: 100; transition: width 0.2s; }
+    .toc a { transition: color 0.15s; }
+    .toc a:hover { color: #4263eb; }
+    details summary { cursor: pointer; }
+    details summary::-webkit-details-marker { display: none; }
+    .tip { border-left: 4px solid #4c6ef5; background: #f0f4ff; color: #1e293b; }
+    .warn { border-left: 4px solid #f59e0b; background: #fffbeb; color: #1e293b; }
+    .pain { border-left: 4px solid #ef4444; background: #fef2f2; color: #1e293b; }
+    .solved { border-left: 4px solid #10b981; background: #ecfdf5; color: #1e293b; }
+    .check { display: flex; align-items: flex-start; gap: 8px; color: #1f2937; }
+    .check::before { content: '\2713'; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: #10b981; color: white; font-size: 12px; flex-shrink: 0; margin-top: 2px; }
+    .step-num { width: 28px; height: 28px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+    .card { background: white; color: #1f2937; border-radius: 16px; border: 1px solid #e5e7eb; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .code-block { background: #1e293b; color: #a5f3fc; border-radius: 8px; padding: 1rem; font-size: 13px; font-family: 'Consolas', 'Monaco', monospace; overflow-x: auto; line-height: 1.6; }
+    .code-block .comment { color: #64748b; }
+    .mcp-chat { background: #1e1e2e; border-radius: 12px; padding: 1.5rem; font-size: 14px; }
+    .mcp-user { color: #94a3b8; margin-bottom: 8px; }
+    .mcp-user strong { color: #e2e8f0; }
+    .mcp-agent { color: #a5f3fc; margin-bottom: 4px; }
+    .mcp-agent strong { color: #67e8f9; }
+    .mcp-query { color: #fbbf24; font-family: monospace; font-size: 12px; background: #334155; border-radius: 4px; padding: 4px 8px; display: inline-block; margin: 4px 0; }
+    .mcp-result { color: #86efac; font-size: 13px; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <div class="nav-progress" id="progress"></div>
+
+  <!-- Header -->
+  <header class="bg-gray-900 text-white sticky top-0 z-50 shadow-lg">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
+        <span class="font-bold text-lg">Foundry Learn</span>
+      </div>
+      <a href="/" class="text-sm text-blue-300 hover:text-white transition-colors">&larr; アプリに戻る</a>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="bg-gradient-to-br from-gray-900 via-slate-800 to-emerald-900 text-white py-20">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-sm font-medium mb-4">
+        <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+        実践チュートリアル &mdash; 約40分
+      </div>
+      <h1 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">サーバー管理ナレッジグラフ</h1>
+      <p class="text-xl text-blue-200 max-w-3xl mb-4">
+        「あのサーバー、SINだっけ？SOUTだっけ？」「ログどこ？」「誰に聞けばいい？」<br>
+        を <strong class="text-white">AI が即答できる世界</strong> を作ります。
+      </p>
+      <p class="text-base text-slate-400 max-w-2xl mb-8">
+        サーバー情報 &times; 組織構造 &mdash; 2つの関心ごとをオントロジーで接続し、<br>
+        GitHub Copilot (MCP) から横断クエリできるナレッジ基盤を構築します。
+      </p>
+      <div class="flex flex-wrap gap-4">
+        <a href="#pain" class="bg-white text-gray-900 font-bold px-6 py-3 rounded-lg hover:bg-blue-100 transition-colors">START &rarr;</a>
+        <a href="#toc" class="border border-white/30 px-6 py-3 rounded-lg hover:bg-white/10 transition-colors">カリキュラムを見る</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="max-w-5xl mx-auto px-6 py-12">
+
+    <!-- === TOC === -->
+    <nav id="toc" class="card mb-12 toc">
+      <h2 class="text-2xl font-bold mb-6">&#x1F4CB; カリキュラム</h2>
+      <div class="grid md:grid-cols-2 gap-x-8 gap-y-1">
+        <div>
+          <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">課題と設計</h3>
+          <ol class="space-y-2 text-sm mb-6">
+            <li><a href="#pain" class="text-gray-700 hover:text-blue-600">1. 現場の課題を整理する</a></li>
+            <li><a href="#design" class="text-gray-700 hover:text-blue-600">2. オントロジーを設計する</a></li>
+            <li><a href="#project" class="text-gray-700 hover:text-blue-600">3. プロジェクトを作成する</a></li>
+          </ol>
+          <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">ドメイン&#9312;: サーバー情報</h3>
+          <ol start="4" class="space-y-2 text-sm mb-6">
+            <li><a href="#server-type" class="text-gray-700 hover:text-blue-600">4. Server オブジェクトタイプを作る</a></li>
+            <li><a href="#server-data" class="text-gray-700 hover:text-blue-600">5. サーバーデータを投入する</a></li>
+          </ol>
+          <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">ドメイン&#9313;: 組織構造</h3>
+          <ol start="6" class="space-y-2 text-sm">
+            <li><a href="#team-type" class="text-gray-700 hover:text-blue-600">6. Team オブジェクトタイプを作る</a></li>
+            <li><a href="#team-data" class="text-gray-700 hover:text-blue-600">7. チームデータを投入する</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">ドメイン接続</h3>
+          <ol start="8" class="space-y-2 text-sm mb-6">
+            <li><a href="#link-owns" class="text-gray-700 hover:text-blue-600">8. Team &rarr; Server リンクを作る</a></li>
+            <li><a href="#link-data" class="text-gray-700 hover:text-blue-600">9. 所有関係を登録する</a></li>
+          </ol>
+          <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">MCP 活用</h3>
+          <ol start="10" class="space-y-2 text-sm mb-6">
+            <li><a href="#explore" class="text-gray-700 hover:text-blue-600">10. Object Explorer で確認する</a></li>
+            <li><a href="#mcp" class="text-gray-700 hover:text-blue-600">11. MCP &times; Copilot で使うイメージ</a></li>
+          </ol>
+          <h3 class="text-sm font-bold text-gray-600 uppercase tracking-wider mb-3">まとめ</h3>
+          <ol start="12" class="space-y-2 text-sm">
+            <li><a href="#conclusion" class="text-gray-700 hover:text-blue-600">12. Before/After &amp; 次のステップ</a></li>
+          </ol>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ==================== STEP 1: PAIN ==================== -->
+    <section id="pain" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-red-500 text-white rounded-xl flex items-center justify-center font-bold">1</div>
+        <h2 class="text-2xl font-bold">現場の課題を整理する</h2>
+      </div>
+      <div class="card">
+        <p class="text-lg text-gray-700 mb-6">まず、サーバー管理で日常的に発生している「あるある」を整理しましょう。</p>
+
+        <div class="space-y-4 mb-8">
+          <div class="pain rounded-lg p-4">
+            <div class="font-bold mb-1">&#x1F629; 「このサーバー、SIN? SOUT?」</div>
+            <p class="text-sm">開発チームがサービスイン / サービスアウトの状態に自信が持てず、インフラチームに毎回確認する。Slack が飛ぶ &rarr; 返事を待つ &rarr; 作業再開、で <strong>30分〜1時間ロス</strong>。</p>
+          </div>
+          <div class="pain rounded-lg p-4">
+            <div class="font-bold mb-1">&#x1F629; 「誰に聞けばいい？」</div>
+            <p class="text-sm">インフラチーム側も、障害時に開発チーム A なのか B なのか分からず、<strong>連絡先探しに10分</strong>。深夜のオンコールで致命的。</p>
+          </div>
+          <div class="pain rounded-lg p-4">
+            <div class="font-bold mb-1">&#x1F629; 「ログどこにあるの？」</div>
+            <p class="text-sm">新メンバーやヘルプで入った人が <code>/var/log/app/</code> なのか <code>/opt/service/logs/</code> なのか分からない。<strong>AI エージェントも当然分からない</strong>。</p>
+          </div>
+          <div class="pain rounded-lg p-4">
+            <div class="font-bold mb-1">&#x1F629; 「SSH のやり方が暗黙知」</div>
+            <p class="text-sm">踏み台経由 &rarr; ProxyJump &rarr; ポートフォワード… 手順は先輩の頭の中だけ。ドキュメントは古くて信用できない。</p>
+          </div>
+        </div>
+
+        <div class="tip rounded-lg p-4 text-sm">
+          <strong>&#x1F4A1; 共通の根本原因:</strong> サーバー情報（状態・ログ・アクセス方法）と組織構造（どのチームがどのサーバーを管理）が <strong>別々の場所にバラバラに存在</strong> し、横断的に引ける仕組みがない。
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 2: DESIGN ==================== -->
+    <section id="design" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold">2</div>
+        <h2 class="text-2xl font-bold">オントロジーを設計する</h2>
+      </div>
+      <div class="card">
+        <p class="mb-6">2つの <strong>関心ドメイン</strong> を定義し、リンクで接続します。これが「オントロジー」の本質です。</p>
+
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+          <!-- Domain 1 -->
+          <div class="border-2 border-emerald-200 rounded-xl p-5 bg-emerald-50/50">
+            <div class="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2">ドメイン&#9312; サーバー情報</div>
+            <h3 class="font-bold text-lg mb-3 text-gray-800">Server</h3>
+            <table class="w-full text-sm">
+              <thead><tr class="text-left text-gray-600"><th class="pb-1">Property</th><th class="pb-1">型</th><th class="pb-1">説明</th></tr></thead>
+              <tbody class="text-gray-700">
+                <tr><td class="py-1"><code>hostname</code></td><td>string</td><td>ホスト名</td></tr>
+                <tr><td class="py-1"><code>ip_address</code></td><td>string</td><td>IPアドレス</td></tr>
+                <tr><td class="py-1"><code>status</code></td><td>string</td><td><code>SIN</code> / <code>SOUT</code></td></tr>
+                <tr><td class="py-1"><code>env</code></td><td>string</td><td>production / staging</td></tr>
+                <tr><td class="py-1"><code>log_path</code></td><td>string</td><td>ログの場所</td></tr>
+                <tr><td class="py-1"><code>access_method</code></td><td>string</td><td>SSH 接続手順</td></tr>
+                <tr><td class="py-1"><code>purpose</code></td><td>string</td><td>用途の説明</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Domain 2 -->
+          <div class="border-2 border-violet-200 rounded-xl p-5 bg-violet-50/50">
+            <div class="text-xs font-bold text-violet-600 uppercase tracking-wider mb-2">ドメイン&#9313; 組織構造</div>
+            <h3 class="font-bold text-lg mb-3 text-gray-800">Team</h3>
+            <table class="w-full text-sm">
+              <thead><tr class="text-left text-gray-600"><th class="pb-1">Property</th><th class="pb-1">型</th><th class="pb-1">説明</th></tr></thead>
+              <tbody class="text-gray-700">
+                <tr><td class="py-1"><code>name</code></td><td>string</td><td>チーム名</td></tr>
+                <tr><td class="py-1"><code>slack_channel</code></td><td>string</td><td>連絡先チャンネル</td></tr>
+                <tr><td class="py-1"><code>oncall_rotation</code></td><td>string</td><td>オンコール情報</td></tr>
+                <tr><td class="py-1"><code>lead</code></td><td>string</td><td>リーダー名</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Link -->
+        <div class="bg-gray-100 rounded-xl p-6 text-center mb-6">
+          <div class="inline-flex items-center gap-4 text-lg font-bold">
+            <span class="bg-violet-100 text-violet-700 px-4 py-2 rounded-lg">Team</span>
+            <span class="text-gray-400">
+              <svg class="w-8 h-8 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              <div class="text-xs font-medium text-gray-500">owns (1:N)</div>
+            </span>
+            <span class="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg">Server</span>
+          </div>
+          <p class="text-sm text-gray-600 mt-3">「どのチームがどのサーバーを管理しているか」を接続</p>
+        </div>
+
+        <div class="tip rounded-lg p-4 text-sm">
+          <strong>&#x1F4A1; なぜ2ドメインを分けるのか:</strong> サーバー情報はインフラチームが更新し、組織構造は人事/マネジメントが更新する。更新頻度もオーナーも異なるものを「リンク」で繋ぐのがオントロジーの強みです。
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 3: PROJECT ==================== -->
+    <section id="project" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold">3</div>
+        <h2 class="text-2xl font-bold">プロジェクトを作成する</h2>
+      </div>
+      <div class="card">
+        <ol class="space-y-4 mb-6">
+          <li class="flex gap-3">
+            <span class="step-num bg-blue-100 text-blue-700">1</span>
+            <div>サイドバーの <strong>Projects</strong> &rarr; <strong>+ New Project</strong></div>
+          </li>
+          <li class="flex gap-3">
+            <span class="step-num bg-blue-100 text-blue-700">2</span>
+            <div>
+              <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Name</td><td class="px-3 py-2 border-b"><code>Infra Knowledge</code></td></tr>
+                <tr><td class="px-3 py-2 font-medium w-32">Description</td><td class="px-3 py-2"><code>サーバー管理 &times; 組織構造 ナレッジグラフ</code></td></tr>
+              </table>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="step-num bg-blue-100 text-blue-700">3</span>
+            <div><strong>Create</strong> をクリック。</div>
+          </li>
+        </ol>
+        <div class="check"><div>プロジェクト一覧に「Infra Knowledge」が表示される。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 4: SERVER TYPE ==================== -->
+    <section id="server-type" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center font-bold">4</div>
+        <h2 class="text-2xl font-bold">Server オブジェクトタイプを作る</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">サイドバー <strong>Ontology</strong> &rarr; <strong>+ New Object Type</strong> で以下を作成:</p>
+
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mb-6">
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Name</td><td class="px-3 py-2 border-b"><code>Server</code></td></tr>
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">API Name</td><td class="px-3 py-2 border-b"><code>server</code></td></tr>
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Project</td><td class="px-3 py-2 border-b">Infra Knowledge</td></tr>
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Color</td><td class="px-3 py-2 border-b"><code>#10b981</code> (緑)</td></tr>
+          <tr><td class="px-3 py-2 font-medium w-32">Description</td><td class="px-3 py-2"><code>物理/仮想サーバーのインベントリ</code></td></tr>
+        </table>
+
+        <p class="font-bold mb-3">プロパティを追加する</p>
+        <p class="text-sm text-gray-600 mb-3">Ontology &rarr; Server の <strong>Explore &rarr;</strong> &rarr; 左パネルの <strong>+ Add</strong> で順に追加:</p>
+
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mb-6">
+          <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left border-b">Name</th><th class="px-3 py-2 text-left border-b">API Name</th><th class="px-3 py-2 text-left border-b">Type</th></tr></thead>
+          <tbody>
+            <tr class="border-b"><td class="px-3 py-2"><code>Hostname</code></td><td class="px-3 py-2"><code>hostname</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>IP Address</code></td><td class="px-3 py-2"><code>ip_address</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>Status</code></td><td class="px-3 py-2"><code>status</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>Environment</code></td><td class="px-3 py-2"><code>env</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>Log Path</code></td><td class="px-3 py-2"><code>log_path</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>Access Method</code></td><td class="px-3 py-2"><code>access_method</code></td><td class="px-3 py-2">string</td></tr>
+            <tr><td class="px-3 py-2"><code>Purpose</code></td><td class="px-3 py-2"><code>purpose</code></td><td class="px-3 py-2">string</td></tr>
+          </tbody>
+        </table>
+
+        <div class="check"><div>左パネルに7つのプロパティが表示される。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 5: SERVER DATA ==================== -->
+    <section id="server-data" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center font-bold">5</div>
+        <h2 class="text-2xl font-bold">サーバーデータを投入する</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">Object Explorer の中央パネルで <strong>+ Create</strong> をクリックし、以下を1件ずつ登録:</p>
+
+        <p class="font-bold text-emerald-700 mb-2">&#x1F7E2; web-prod-01 &mdash; 本番 Web サーバー</p>
+        <div class="code-block mb-4">
+<pre>{
+  "hostname": "web-prod-01",
+  "ip_address": "10.1.1.11",
+  "status": "SIN",
+  "env": "production",
+  "log_path": "/var/log/nginx/access.log, /opt/app/logs/app.log",
+  "access_method": "ssh -J bastion.internal web-prod-01",
+  "purpose": "ユーザー向け Web アプリケーション (Nginx + Node.js)"
+}</pre>
+        </div>
+
+        <p class="font-bold text-emerald-700 mb-2">&#x1F7E2; api-prod-01 &mdash; 本番 API サーバー</p>
+        <div class="code-block mb-4">
+<pre>{
+  "hostname": "api-prod-01",
+  "ip_address": "10.1.1.21",
+  "status": "SIN",
+  "env": "production",
+  "log_path": "/opt/api/logs/api.log, /var/log/syslog",
+  "access_method": "ssh -J bastion.internal api-prod-01",
+  "purpose": "REST API バックエンド (FastAPI)"
+}</pre>
+        </div>
+
+        <p class="font-bold text-amber-600 mb-2">&#x1F7E1; api-prod-02 &mdash; 本番 API (メンテ中)</p>
+        <div class="code-block mb-4">
+<pre>{
+  "hostname": "api-prod-02",
+  "ip_address": "10.1.1.22",
+  "status": "SOUT",
+  "env": "production",
+  "log_path": "/opt/api/logs/api.log, /var/log/syslog",
+  "access_method": "ssh -J bastion.internal api-prod-02",
+  "purpose": "REST API バックエンド (FastAPI) - メモリ増設のためSOUT中"
+}</pre>
+        </div>
+
+        <p class="font-bold text-blue-600 mb-2">&#x1F535; batch-prod-01 &mdash; バッチサーバー</p>
+        <div class="code-block mb-4">
+<pre>{
+  "hostname": "batch-prod-01",
+  "ip_address": "10.1.2.10",
+  "status": "SIN",
+  "env": "production",
+  "log_path": "/var/log/cron.log, /opt/batch/logs/",
+  "access_method": "ssh -J bastion.internal batch-prod-01 (要: batch-adminsグループ)",
+  "purpose": "夜間バッチ処理 (日次集計, レポート生成)"
+}</pre>
+        </div>
+
+        <p class="font-bold text-gray-600 mb-2">&#x26AA; web-stg-01 &mdash; ステージング Web</p>
+        <div class="code-block mb-6">
+<pre>{
+  "hostname": "web-stg-01",
+  "ip_address": "10.2.1.11",
+  "status": "SIN",
+  "env": "staging",
+  "log_path": "/var/log/nginx/access.log, /opt/app/logs/app.log",
+  "access_method": "ssh web-stg-01 (VPN接続必須)",
+  "purpose": "ステージング環境 Web (本番同等構成)"
+}</pre>
+        </div>
+
+        <div class="check"><div>中央パネルに5台のサーバーが表示される。</div></div>
+        <div class="check"><div>api-prod-02 の status が <code>SOUT</code> であることを確認。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 6: TEAM TYPE ==================== -->
+    <section id="team-type" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-violet-500 text-white rounded-xl flex items-center justify-center font-bold">6</div>
+        <h2 class="text-2xl font-bold">Team オブジェクトタイプを作る</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">Ontology ページに戻り、<strong>+ New Object Type</strong>:</p>
+
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mb-6">
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Name</td><td class="px-3 py-2 border-b"><code>Team</code></td></tr>
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">API Name</td><td class="px-3 py-2 border-b"><code>team</code></td></tr>
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Project</td><td class="px-3 py-2 border-b">Infra Knowledge</td></tr>
+          <tr class="bg-gray-50"><td class="px-3 py-2 font-medium border-b w-32">Color</td><td class="px-3 py-2 border-b"><code>#8b5cf6</code> (紫)</td></tr>
+          <tr><td class="px-3 py-2 font-medium w-32">Description</td><td class="px-3 py-2"><code>開発/インフラチームの情報</code></td></tr>
+        </table>
+
+        <p class="font-bold mb-3">プロパティ</p>
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mb-6">
+          <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left border-b">Name</th><th class="px-3 py-2 text-left border-b">API Name</th><th class="px-3 py-2 text-left border-b">Type</th></tr></thead>
+          <tbody>
+            <tr class="border-b"><td class="px-3 py-2"><code>Team Name</code></td><td class="px-3 py-2"><code>name</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>Slack Channel</code></td><td class="px-3 py-2"><code>slack_channel</code></td><td class="px-3 py-2">string</td></tr>
+            <tr class="border-b"><td class="px-3 py-2"><code>Oncall Rotation</code></td><td class="px-3 py-2"><code>oncall_rotation</code></td><td class="px-3 py-2">string</td></tr>
+            <tr><td class="px-3 py-2"><code>Lead</code></td><td class="px-3 py-2"><code>lead</code></td><td class="px-3 py-2">string</td></tr>
+          </tbody>
+        </table>
+
+        <div class="check"><div>Ontology に Server (緑) と Team (紫) の2つのカードが並ぶ。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 7: TEAM DATA ==================== -->
+    <section id="team-data" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-violet-500 text-white rounded-xl flex items-center justify-center font-bold">7</div>
+        <h2 class="text-2xl font-bold">チームデータを投入する</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">Team の Object Explorer で <strong>+ Create</strong>:</p>
+
+        <p class="font-bold text-violet-700 mb-2">&#x1F465; 開発チーム Alpha</p>
+        <div class="code-block mb-4">
+<pre>{
+  "name": "開発チーム Alpha",
+  "slack_channel": "#dev-alpha",
+  "oncall_rotation": "毎週月曜ローテ: 田中&#x2192;佐藤&#x2192;鈴木",
+  "lead": "田中 太郎"
+}</pre>
+        </div>
+
+        <p class="font-bold text-violet-700 mb-2">&#x1F465; 開発チーム Bravo</p>
+        <div class="code-block mb-4">
+<pre>{
+  "name": "開発チーム Bravo",
+  "slack_channel": "#dev-bravo",
+  "oncall_rotation": "毎週月曜ローテ: 山田&#x2192;高橋&#x2192;伊藤",
+  "lead": "山田 花子"
+}</pre>
+        </div>
+
+        <p class="font-bold text-violet-700 mb-2">&#x1F465; インフラチーム</p>
+        <div class="code-block mb-6">
+<pre>{
+  "name": "インフラチーム",
+  "slack_channel": "#infra-ops",
+  "oncall_rotation": "PagerDuty: infra-oncall エスカレーション",
+  "lead": "中村 健一"
+}</pre>
+        </div>
+
+        <div class="check"><div>3チームが表示される。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 8: LINK TYPE ==================== -->
+    <section id="link-owns" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-bold">8</div>
+        <h2 class="text-2xl font-bold">Team &rarr; Server リンクを作る</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">2つのドメインを接続する <strong>リンクタイプ</strong> を作ります。これがオントロジーの真骨頂です。</p>
+
+        <div class="warn rounded-lg p-4 text-sm mb-6">
+          <strong>&#x26A0;&#xFE0F; 現在 UI にリンクタイプ作成フォームがないため、API で作成します。</strong><br>
+          ブラウザの DevTools コンソール (F12) で以下を実行:
+        </div>
+
+        <div class="code-block mb-6">
+<pre><span class="comment">// Team (id=2) &rarr; Server (id=1) の "owns" リンク</span>
+fetch('/api/ontology/link-types', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'owns',
+    api_name: 'team_owns_server',
+    project_id: 1,
+    source_object_type_id: 2,
+    target_object_type_id: 1,
+    cardinality: 'one_to_many'
+  })
+}).then(r =&gt; r.json()).then(console.log)</pre>
+        </div>
+
+        <div class="tip rounded-lg p-4 text-sm mb-4">
+          <strong>&#x1F4A1; source/target の ID 確認:</strong> Object Type の ID は作成順に振られます。Server を先に作った場合は <code>id=1</code>、Team が <code>id=2</code> です。Ontology ページの URL やカード表示で確認してください。
+        </div>
+
+        <div class="check"><div>Ontology &rarr; Link Types タブに「owns」(Team &rarr; Server, one_to_many) が表示される。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 9: LINK DATA ==================== -->
+    <section id="link-data" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-bold">9</div>
+        <h2 class="text-2xl font-bold">所有関係を登録する</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">どのチームがどのサーバーを管理しているか、リンクを張ります:</p>
+
+        <div class="bg-gray-100 rounded-xl p-4 mb-6 text-sm">
+          <table class="w-full">
+            <thead><tr class="text-left text-gray-600"><th class="pb-2">チーム</th><th class="pb-2"></th><th class="pb-2">サーバー</th><th class="pb-2">理由</th></tr></thead>
+            <tbody class="text-gray-700">
+              <tr class="border-t border-gray-200"><td class="py-2">開発チーム Alpha</td><td>&rarr;</td><td>web-prod-01</td><td>Web アプリ担当</td></tr>
+              <tr class="border-t border-gray-200"><td class="py-2">開発チーム Alpha</td><td>&rarr;</td><td>web-stg-01</td><td>ステージングも Alpha 管轄</td></tr>
+              <tr class="border-t border-gray-200"><td class="py-2">開発チーム Bravo</td><td>&rarr;</td><td>api-prod-01</td><td>API 開発担当</td></tr>
+              <tr class="border-t border-gray-200"><td class="py-2">開発チーム Bravo</td><td>&rarr;</td><td>api-prod-02</td><td>API 開発担当 (SOUT中)</td></tr>
+              <tr class="border-t border-gray-200"><td class="py-2">インフラチーム</td><td>&rarr;</td><td>batch-prod-01</td><td>バッチ基盤はインフラ管轄</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="text-sm text-gray-600 mb-3">DevTools で順に実行 (Team・Server の ID は登録順に応じて調整):</p>
+
+        <div class="code-block mb-6">
+<pre><span class="comment">// 開発チーム Alpha (Team id=1) &rarr; web-prod-01 (Server id=1)</span>
+fetch('/api/ontology/links', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ link_type_id: 1, source_object_id: 1, target_object_id: 1 })
+}).then(r =&gt; r.json()).then(console.log)
+
+<span class="comment">// 開発チーム Alpha &rarr; web-stg-01 (Server id=5)</span>
+fetch('/api/ontology/links', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ link_type_id: 1, source_object_id: 1, target_object_id: 5 })
+}).then(r =&gt; r.json()).then(console.log)
+
+<span class="comment">// 開発チーム Bravo (Team id=2) &rarr; api-prod-01 (Server id=2)</span>
+fetch('/api/ontology/links', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ link_type_id: 1, source_object_id: 2, target_object_id: 2 })
+}).then(r =&gt; r.json()).then(console.log)
+
+<span class="comment">// 開発チーム Bravo &rarr; api-prod-02 (Server id=3)</span>
+fetch('/api/ontology/links', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ link_type_id: 1, source_object_id: 2, target_object_id: 3 })
+}).then(r =&gt; r.json()).then(console.log)
+
+<span class="comment">// インフラチーム (Team id=3) &rarr; batch-prod-01 (Server id=4)</span>
+fetch('/api/ontology/links', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ link_type_id: 1, source_object_id: 3, target_object_id: 4 })
+}).then(r =&gt; r.json()).then(console.log)</pre>
+        </div>
+
+        <div class="check"><div>Team の Object Explorer で「開発チーム Alpha」を選択 &rarr; 右パネルに web-prod-01, web-stg-01 の2件のリンク。</div></div>
+        <div class="check"><div>「開発チーム Bravo」&rarr; api-prod-01, api-prod-02 の2件のリンク。</div></div>
+        <div class="check"><div>「インフラチーム」&rarr; batch-prod-01 の1件のリンク。</div></div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 10: EXPLORE ==================== -->
+    <section id="explore" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center font-bold">10</div>
+        <h2 class="text-2xl font-bold">Object Explorer で確認する</h2>
+      </div>
+      <div class="card">
+        <p class="mb-6">構築したナレッジグラフを Explorer で検証しましょう。以下のシナリオを試してください:</p>
+
+        <div class="space-y-4 mb-6">
+          <div class="solved rounded-lg p-4">
+            <div class="font-bold mb-1">&#x2705; シナリオ1: 「api-prod-02 は SIN? SOUT?」</div>
+            <p class="text-sm">Server Explorer &rarr; api-prod-02 をクリック &rarr; 右パネルに <code>status: SOUT</code> と <code>purpose: メモリ増設のためSOUT中</code> が表示される。<strong>Slack で聞く必要なし。</strong></p>
+          </div>
+          <div class="solved rounded-lg p-4">
+            <div class="font-bold mb-1">&#x2705; シナリオ2: 「api-prod-02 の件、誰に連絡すれば？」</div>
+            <p class="text-sm">api-prod-02 の Links &rarr; Team「開発チーム Bravo」&rarr; <code>slack_channel: #dev-bravo</code>, <code>lead: 山田 花子</code>。<strong>連絡先が即判明。</strong></p>
+          </div>
+          <div class="solved rounded-lg p-4">
+            <div class="font-bold mb-1">&#x2705; シナリオ3: 「web-prod-01 のログどこ？」</div>
+            <p class="text-sm">Server Explorer &rarr; web-prod-01 &rarr; <code>log_path: /var/log/nginx/access.log, /opt/app/logs/app.log</code>。<strong>新人でも即アクセス可能。</strong></p>
+          </div>
+          <div class="solved rounded-lg p-4">
+            <div class="font-bold mb-1">&#x2705; シナリオ4: 「batch-prod-01 に入りたいんだけど…」</div>
+            <p class="text-sm">Server Explorer &rarr; batch-prod-01 &rarr; <code>access_method: ssh -J bastion.internal batch-prod-01 (要: batch-admins グループ)</code>。<strong>踏み台の手順 + 必要な権限まで記載。</strong></p>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-r from-indigo-50 to-emerald-50 rounded-xl p-6 text-center">
+          <div class="text-4xl mb-3">&#x1F3AF;</div>
+          <p class="text-lg font-bold text-gray-800">暗黙知がデータになった瞬間です。</p>
+          <p class="text-gray-600">人間もAIも、同じグラフから同じ情報にアクセスできます。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 11: MCP ==================== -->
+    <section id="mcp" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-gray-800 text-white rounded-xl flex items-center justify-center font-bold">11</div>
+        <h2 class="text-2xl font-bold">MCP &times; Copilot で使うイメージ</h2>
+      </div>
+      <div class="card">
+        <p class="mb-4">このナレッジグラフを <strong>MCP (Model Context Protocol) サーバー</strong> として公開すると、GitHub Copilot から以下のようなやりとりが可能になります:</p>
+
+        <!-- Chat 1 -->
+        <div class="mcp-chat mb-6">
+          <div class="mcp-user"><strong>&#x1F464; 開発者:</strong> api-prod-02 って今サービスインしてる？</div>
+          <div class="mcp-agent"><strong>&#x1F916; Copilot:</strong></div>
+          <div class="mcp-query">MCP &rarr; GET /api/ontology/objects?type=server &rarr; filter hostname="api-prod-02"</div>
+          <div class="mcp-result">
+            <strong>api-prod-02</strong> は現在 <strong>SOUT</strong>（サービスアウト）です。<br>
+            理由: メモリ増設のためSOUT中<br>
+            担当: 開発チーム Bravo (#dev-bravo / リーダー: 山田 花子)
+          </div>
+        </div>
+
+        <!-- Chat 2 -->
+        <div class="mcp-chat mb-6">
+          <div class="mcp-user"><strong>&#x1F464; 開発者:</strong> web-prod-01 でエラーが出てるんだけど、ログを見たい</div>
+          <div class="mcp-agent"><strong>&#x1F916; Copilot:</strong></div>
+          <div class="mcp-query">MCP &rarr; GET /api/ontology/objects?type=server &rarr; filter hostname="web-prod-01"</div>
+          <div class="mcp-result">
+            <strong>web-prod-01</strong> のログはここにあります:<br>
+            &bull; Nginx: <code>/var/log/nginx/access.log</code><br>
+            &bull; アプリ: <code>/opt/app/logs/app.log</code><br><br>
+            アクセス方法: <code>ssh -J bastion.internal web-prod-01</code>
+          </div>
+        </div>
+
+        <!-- Chat 3 -->
+        <div class="mcp-chat mb-6">
+          <div class="mcp-user"><strong>&#x1F464; インフラ (深夜オンコール):</strong> batch-prod-01 で cron が失敗してる。どこのチームに連絡すれば？</div>
+          <div class="mcp-agent"><strong>&#x1F916; Copilot:</strong></div>
+          <div class="mcp-query">MCP &rarr; GET /api/ontology/objects/{id}/links &rarr; resolve team</div>
+          <div class="mcp-result">
+            <strong>batch-prod-01</strong> の管理チーム: <strong>インフラチーム</strong><br>
+            &rarr; これはインフラチーム自身の管轄です。<br>
+            Slack: #infra-ops / リーダー: 中村 健一<br>
+            オンコール: PagerDuty infra-oncall エスカレーション<br><br>
+            ※ cron ログ: <code>/var/log/cron.log</code>
+          </div>
+        </div>
+
+        <!-- Chat 4: Cross-domain query -->
+        <div class="mcp-chat mb-6">
+          <div class="mcp-user"><strong>&#x1F464; マネージャー:</strong> 開発チーム Bravo が管理しているサーバーで SOUT 中のものはある？</div>
+          <div class="mcp-agent"><strong>&#x1F916; Copilot:</strong></div>
+          <div class="mcp-query">MCP &rarr; GET Team "Bravo" &rarr; links &rarr; filter status="SOUT"</div>
+          <div class="mcp-result">
+            開発チーム Bravo の管理サーバーで SOUT 中:<br>
+            &bull; <strong>api-prod-02</strong> (10.1.1.22) &mdash; メモリ増設のためSOUT中<br><br>
+            他1台 (api-prod-01) は SIN で正常稼働中です。
+          </div>
+        </div>
+
+        <div class="tip rounded-lg p-4 text-sm">
+          <strong>&#x1F4A1; ポイント:</strong> これは単なる「サーバー一覧の検索」ではありません。<strong>Team &rarr; Server のリンクを辿って横断クエリ</strong>している点がナレッジグラフの価値です。従来のスプレッドシートやCMDBでは「BravoチームのSOUTサーバー」を一発で引くのは困難でした。
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 12: CONCLUSION ==================== -->
+    <section id="conclusion" class="mb-16">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-gray-700 text-white rounded-xl flex items-center justify-center font-bold">12</div>
+        <h2 class="text-2xl font-bold">Before / After &amp; 次のステップ</h2>
+      </div>
+      <div class="card">
+        <h3 class="font-bold text-lg mb-4">Before &rarr; After</h3>
+        <div class="overflow-x-auto mb-8">
+          <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+            <thead class="bg-gray-50">
+              <tr><th class="px-4 py-3 text-left border-b">課題</th><th class="px-4 py-3 text-left border-b text-red-600">Before</th><th class="px-4 py-3 text-left border-b text-emerald-600">After (ナレッジグラフ)</th></tr>
+            </thead>
+            <tbody class="text-gray-700">
+              <tr class="border-b">
+                <td class="px-4 py-3 font-medium">SIN/SOUT 確認</td>
+                <td class="px-4 py-3">Slack でインフラに質問 &rarr; 30分待ち</td>
+                <td class="px-4 py-3">Explorer or Copilot に聞く &rarr; <strong>3秒</strong></td>
+              </tr>
+              <tr class="border-b">
+                <td class="px-4 py-3 font-medium">障害時の連絡先</td>
+                <td class="px-4 py-3">Wiki を探す &rarr; 古い &rarr; 聞き回る &rarr; 10分</td>
+                <td class="px-4 py-3">Server&rarr;Team リンクで <strong>即解決</strong></td>
+              </tr>
+              <tr class="border-b">
+                <td class="px-4 py-3 font-medium">ログの場所</td>
+                <td class="px-4 py-3">先輩に聞く / grep -r で探す</td>
+                <td class="px-4 py-3"><code>log_path</code> プロパティで <strong>即答</strong></td>
+              </tr>
+              <tr class="border-b">
+                <td class="px-4 py-3 font-medium">アクセス方法</td>
+                <td class="px-4 py-3">暗黙知 / 古いドキュメント</td>
+                <td class="px-4 py-3"><code>access_method</code> が常に最新</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-medium">AI エージェント連携</td>
+                <td class="px-4 py-3">情報が散在 &rarr; AI は何もできない</td>
+                <td class="px-4 py-3">MCP 経由で <strong>全情報にアクセス可能</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="font-bold text-lg mb-4">構築したオントロジー</h3>
+        <div class="bg-gray-100 text-gray-800 rounded-xl p-6 mb-8 font-mono text-sm overflow-x-auto">
+<pre class="text-center">
+ &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;         &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+ &#x2502;   <span class="text-violet-600 font-bold">Team</span>                &#x2502;         &#x2502;   <span class="text-emerald-600 font-bold">Server</span>              &#x2502;
+ &#x2502;                      &#x2502;         &#x2502;                      &#x2502;
+ &#x2502;  name                &#x2502;  owns   &#x2502;  hostname             &#x2502;
+ &#x2502;  slack_channel       &#x2502; &#x2500;&#x2500;&#x2500;&#x2500;&#x2192; &#x2502;  ip_address           &#x2502;
+ &#x2502;  oncall_rotation     &#x2502;  (1:N)  &#x2502;  status (SIN/SOUT)    &#x2502;
+ &#x2502;  lead                &#x2502;         &#x2502;  env                  &#x2502;
+ &#x2502;                      &#x2502;         &#x2502;  log_path             &#x2502;
+ &#x2502;                      &#x2502;         &#x2502;  access_method        &#x2502;
+ &#x2502;                      &#x2502;         &#x2502;  purpose              &#x2502;
+ &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;         &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+</pre>
+        </div>
+
+        <h3 class="font-bold text-lg mb-4">次のステップ: グラフを拡張する</h3>
+        <div class="space-y-3">
+          <details class="border border-gray-200 rounded-lg">
+            <summary class="px-4 py-3 font-medium hover:bg-gray-50 flex items-center gap-2 text-gray-800">
+              <span>&#x25B6;</span> Middleware オブジェクトタイプを追加
+            </summary>
+            <div class="px-4 pb-4 text-sm text-gray-600">
+              DB (MySQL/PostgreSQL)、キャッシュ (Redis)、MQ (Kafka) をオブジェクトタイプとして追加し、<code>Server &rarr; runs &rarr; Middleware</code> のリンクを張る。「このサーバーで動いてる MySQL のバージョンは？」に即答可能に。
+            </div>
+          </details>
+          <details class="border border-gray-200 rounded-lg">
+            <summary class="px-4 py-3 font-medium hover:bg-gray-50 flex items-center gap-2 text-gray-800">
+              <span>&#x25B6;</span> Runbook オブジェクトタイプを追加
+            </summary>
+            <div class="px-4 pb-4 text-sm text-gray-600">
+              障害対応手順書をオブジェクト化し、<code>Server &rarr; has_runbook &rarr; Runbook</code> で接続。Copilot が「このエラーの対処法は？」に対して手順書を返せるようになる。
+            </div>
+          </details>
+          <details class="border border-gray-200 rounded-lg">
+            <summary class="px-4 py-3 font-medium hover:bg-gray-50 flex items-center gap-2 text-gray-800">
+              <span>&#x25B6;</span> パイプラインで自動同期
+            </summary>
+            <div class="px-4 pb-4 text-sm text-gray-600">
+              Ansible/Terraform の出力 &rarr; パイプライン &rarr; Server オブジェクト自動更新。SIN/SOUT の変更も自動反映されるため、グラフが常に最新に。
+            </div>
+          </details>
+          <details class="border border-gray-200 rounded-lg">
+            <summary class="px-4 py-3 font-medium hover:bg-gray-50 flex items-center gap-2 text-gray-800">
+              <span>&#x25B6;</span> MCP サーバーを実装する
+            </summary>
+            <div class="px-4 pb-4 text-sm text-gray-600">
+              この Foundry の REST API (<code>/api/ontology/*</code>) を MCP ツールとしてラップする。GitHub Copilot の <code>.vscode/mcp.json</code> に登録すれば、Copilot Chat からナレッジグラフに直接クエリ可能。
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 text-sm text-gray-500 border-t border-gray-200">
+      <p>Foundry Internal Platform &mdash; Server Management Knowledge Graph Tutorial</p>
+      <p class="mt-1">
+        <a href="/" class="text-blue-600 hover:underline">アプリに戻る</a>
+        &middot;
+        <a href="/api/health" class="text-blue-600 hover:underline">API Health Check</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    window.addEventListener('scroll', function() {
+      var h = document.documentElement;
+      var pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+      document.getElementById('progress').style.width = pct + '%';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import get_settings
+from app.database import engine, Base
+from app.api import projects, datasets, ontology, pipelines
+
+# Import all models so they are registered with Base
+import app.models  # noqa: F401
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create tables on startup (use Alembic in production)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(
+    title="Foundry",
+    description="Palantir Foundry-inspired knowledge graph & data platform",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(projects.router)
+app.include_router(datasets.router)
+app.include_router(ontology.router)
+app.include_router(pipelines.router)
+
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "version": "0.1.0"}
