@@ -2,16 +2,14 @@
 
 Creates:
   - 1 Project: Infra Knowledge
-  - 4 ObjectTypes: Team, ServerGroup, App, DBTable
-  - 3 Team instances
-  - 4 ServerGroup instances (外部DB参照型)
-  - 4 App instances
-  - 5 DBTable instances
-  - 5 LinkTypes: maintains, develops, deployed_on, calls, reads_table
-  - 28 LinkInstances
+  - 6 ObjectTypes: Team, ServerGroup, App, DBTable, LogPipeline, TrinoTable
+  - 3 Team, 4 ServerGroup, 4 App, 5 DBTable, 3 LogPipeline, 4 TrinoTable instances
+  - 7 LinkTypes: maintains, develops, deployed_on, calls, reads_table, emits_log, produces
+  - 39 LinkInstances
 
 Note: 個別サーバーはグラフに含めず、ServerGroup の外部DB参照
 (source_dsn / source_table / mcp_hint) を使って MCP 経由で探索する設計。
+ログ分析は App → emits_log → LogPipeline → produces → TrinoTable のパスで。
 """
 import urllib.request
 import json
@@ -583,21 +581,319 @@ def main():
         print(f"  Link: {label} (id={link['id']})")
 
     # ═══════════════════════════════════════════
+    # 20. LogPipeline ObjectType + Properties
+    # ═══════════════════════════════════════════
+    print("=== Creating LogPipeline Object Type ===")
+    lp_type = post("/ontology/object-types", {
+        "name": "LogPipeline",
+        "api_name": "log_pipeline",
+        "project_id": pid,
+        "description": "ログ収集・変換パイプライン (Fluentd/Fluent Bit → S3 → Hive → Trino)",
+        "color": "#06b6d4",
+        "title_property": "name",
+    })
+    lp_tid = lp_type["id"]
+    print(f"  LogPipeline ObjectType: id={lp_tid}")
+
+    print("=== Creating LogPipeline Properties ===")
+    lp_props = [
+        ("Name", "name", "string"),
+        ("Description", "description", "string"),
+        ("Log Format", "log_format", "string"),
+        ("Collector", "collector", "string"),
+        ("Storage", "storage", "string"),
+        ("Batch Schedule", "batch_schedule", "string"),
+        ("Retention", "retention", "string"),
+        ("MCP Hint", "mcp_hint", "string"),
+    ]
+    for name, api_name, dtype in lp_props:
+        p = post("/ontology/properties", {
+            "object_type_id": lp_tid, "name": name,
+            "api_name": api_name, "data_type": dtype,
+        })
+        print(f"  Property: {name} (id={p['id']})")
+
+    # ═══════════════════════════════════════════
+    # 21. LogPipeline Instances
+    # ═══════════════════════════════════════════
+    print("=== Creating LogPipeline Instances ===")
+    pipelines_data = [
+        {
+            "name": "access-log-pipeline",
+            "description": "HTTP アクセスログ収集。Nginx / FastAPI のリクエストログ",
+            "log_format": "JSON (timestamp, method, path, status, latency_ms, user_id, request_id)",
+            "collector": "Fluent Bit → Kinesis Firehose",
+            "storage": "s3://data-lake/logs/access/ (Parquet, dt=YYYY-MM-DD パーティション)",
+            "batch_schedule": "毎時 0分: Hive MSCK REPAIR TABLE (パーティション追加)",
+            "retention": "90日 (S3 Lifecycle)",
+            "mcp_hint": "このパイプラインのデータは TrinoTable 'access_logs' を参照してください。\n"
+                        "produces リンクを追って TrinoTable の mcp_hint を確認してください。",
+        },
+        {
+            "name": "app-event-pipeline",
+            "description": "アプリケーションイベントログ。ユーザー操作 / ビジネスイベント",
+            "log_format": "JSON (timestamp, event_type, user_id, payload, app_name, trace_id)",
+            "collector": "Fluent Bit → Kinesis Firehose",
+            "storage": "s3://data-lake/logs/events/ (Parquet, dt=YYYY-MM-DD パーティション)",
+            "batch_schedule": "毎時 0分: Hive MSCK REPAIR TABLE",
+            "retention": "180日",
+            "mcp_hint": "このパイプラインのデータは TrinoTable 'app_events' を参照してください。\n"
+                        "produces リンクを追って TrinoTable の mcp_hint を確認してください。",
+        },
+        {
+            "name": "batch-job-pipeline",
+            "description": "バッチジョブ実行ログ。開始/終了/エラー/処理件数",
+            "log_format": "JSON (timestamp, job_name, status, rows_processed, duration_sec, error)",
+            "collector": "Fluent Bit → Kinesis Firehose",
+            "storage": "s3://data-lake/logs/batch_jobs/ (Parquet, dt=YYYY-MM-DD)",
+            "batch_schedule": "毎時 0分: Hive MSCK REPAIR TABLE",
+            "retention": "365日",
+            "mcp_hint": "このパイプラインのデータは TrinoTable 'batch_job_logs' を参照してください。\n"
+                        "produces リンクを追って TrinoTable の mcp_hint を確認してください。",
+        },
+    ]
+    pipeline_ids = []
+    for lp in pipelines_data:
+        obj = post("/ontology/objects", {"object_type_id": lp_tid, "properties": lp})
+        pipeline_ids.append(obj["id"])
+        print(f"  LogPipeline: {lp['name']} (id={obj['id']})")
+
+    # ═══════════════════════════════════════════
+    # 22. TrinoTable ObjectType + Properties
+    # ═══════════════════════════════════════════
+    print("=== Creating TrinoTable Object Type ===")
+    tt_type = post("/ontology/object-types", {
+        "name": "TrinoTable",
+        "api_name": "trino_table",
+        "project_id": pid,
+        "description": "Trino でクエリ可能な Hive テーブル。ログ分析用",
+        "color": "#ec4899",
+        "title_property": "name",
+    })
+    tt_tid = tt_type["id"]
+    print(f"  TrinoTable ObjectType: id={tt_tid}")
+
+    print("=== Creating TrinoTable Properties ===")
+    tt_props = [
+        ("Name", "name", "string"),
+        ("Catalog.Schema", "catalog_schema", "string"),
+        ("Description", "description", "string"),
+        ("Partition Key", "partition_key", "string"),
+        ("Key Columns", "key_columns", "string"),
+        ("Trino Endpoint", "trino_endpoint", "string"),
+        ("MCP Hint", "mcp_hint", "string"),
+    ]
+    for name, api_name, dtype in tt_props:
+        p = post("/ontology/properties", {
+            "object_type_id": tt_tid, "name": name,
+            "api_name": api_name, "data_type": dtype,
+        })
+        print(f"  Property: {name} (id={p['id']})")
+
+    # ═══════════════════════════════════════════
+    # 23. TrinoTable Instances
+    # ═══════════════════════════════════════════
+    print("=== Creating TrinoTable Instances ===")
+    trino_data = [
+        {
+            "name": "access_logs",
+            "catalog_schema": "hive.logs",
+            "description": "HTTP アクセスログ。リクエスト単位のレイテンシ・ステータスコード・ユーザー分析",
+            "partition_key": "dt (DATE, YYYY-MM-DD)",
+            "key_columns": "timestamp, method, path, status, latency_ms, user_id, request_id, app_name",
+            "trino_endpoint": "trino.internal:8443/hive",
+            "mcp_hint": "Trino MCP → trino.internal:8443\n"
+                        "-- 試験導入分析: 特定アプリのエラー率・レイテンシを確認\n"
+                        "SELECT app_name, status,\n"
+                        "       COUNT(*) AS cnt,\n"
+                        "       AVG(latency_ms) AS avg_latency,\n"
+                        "       APPROX_PERCENTILE(latency_ms, 0.99) AS p99_latency\n"
+                        "  FROM hive.logs.access_logs\n"
+                        " WHERE dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
+                        "   AND app_name = '<アプリ名>'\n"
+                        " GROUP BY app_name, status\n"
+                        " ORDER BY cnt DESC;\n"
+                        "\n"
+                        "-- 時系列トレンド\n"
+                        "SELECT dt,\n"
+                        "       COUNT(*) AS requests,\n"
+                        "       SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) AS errors\n"
+                        "  FROM hive.logs.access_logs\n"
+                        " WHERE dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
+                        "   AND app_name = '<アプリ名>'\n"
+                        " GROUP BY dt ORDER BY dt;",
+        },
+        {
+            "name": "app_events",
+            "catalog_schema": "hive.logs",
+            "description": "アプリケーションイベント。ユーザー行動・ビジネスイベントの分析",
+            "partition_key": "dt (DATE, YYYY-MM-DD)",
+            "key_columns": "timestamp, event_type, user_id, app_name, payload, trace_id",
+            "trino_endpoint": "trino.internal:8443/hive",
+            "mcp_hint": "Trino MCP → trino.internal:8443\n"
+                        "-- 試験導入分析: イベント種別の頻度\n"
+                        "SELECT event_type, app_name, COUNT(*) AS cnt\n"
+                        "  FROM hive.logs.app_events\n"
+                        " WHERE dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
+                        "   AND app_name = '<アプリ名>'\n"
+                        " GROUP BY event_type, app_name\n"
+                        " ORDER BY cnt DESC\n"
+                        " LIMIT 50;\n"
+                        "\n"
+                        "-- ユニークユーザー数 (DAU)\n"
+                        "SELECT dt, COUNT(DISTINCT user_id) AS dau\n"
+                        "  FROM hive.logs.app_events\n"
+                        " WHERE dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
+                        "   AND app_name = '<アプリ名>'\n"
+                        " GROUP BY dt ORDER BY dt;",
+        },
+        {
+            "name": "batch_job_logs",
+            "catalog_schema": "hive.logs",
+            "description": "バッチジョブ実行履歴。成功/失敗・処理時間・処理件数",
+            "partition_key": "dt (DATE, YYYY-MM-DD)",
+            "key_columns": "timestamp, job_name, status, rows_processed, duration_sec, error",
+            "trino_endpoint": "trino.internal:8443/hive",
+            "mcp_hint": "Trino MCP → trino.internal:8443\n"
+                        "-- バッチジョブ成功率\n"
+                        "SELECT job_name, status, COUNT(*) AS cnt\n"
+                        "  FROM hive.logs.batch_job_logs\n"
+                        " WHERE dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
+                        " GROUP BY job_name, status;\n"
+                        "\n"
+                        "-- 失敗ジョブの詳細\n"
+                        "SELECT * FROM hive.logs.batch_job_logs\n"
+                        " WHERE status = 'FAILED'\n"
+                        "   AND dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
+                        " ORDER BY timestamp DESC;",
+        },
+        {
+            "name": "error_summary",
+            "catalog_schema": "hive.logs",
+            "description": "エラー集約ビュー。access_logs + app_events から日次バッチで生成",
+            "partition_key": "dt (DATE, YYYY-MM-DD)",
+            "key_columns": "dt, app_name, error_type, count, sample_trace_id",
+            "trino_endpoint": "trino.internal:8443/hive",
+            "mcp_hint": "Trino MCP → trino.internal:8443\n"
+                        "-- 試験導入後のエラーサマリ(★ 最初に実行するとよい)\n"
+                        "SELECT app_name, error_type, SUM(count) AS total_errors\n"
+                        "  FROM hive.logs.error_summary\n"
+                        " WHERE dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
+                        "   AND app_name = '<アプリ名>'\n"
+                        " GROUP BY app_name, error_type\n"
+                        " ORDER BY total_errors DESC;\n"
+                        "\n"
+                        "-- エラーのトレンド\n"
+                        "SELECT dt, SUM(count) AS daily_errors\n"
+                        "  FROM hive.logs.error_summary\n"
+                        " WHERE app_name = '<アプリ名>'\n"
+                        "   AND dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
+                        " GROUP BY dt ORDER BY dt;",
+        },
+    ]
+    trino_ids = []
+    for tt in trino_data:
+        obj = post("/ontology/objects", {"object_type_id": tt_tid, "properties": tt})
+        trino_ids.append(obj["id"])
+        print(f"  TrinoTable: {tt['catalog_schema']}.{tt['name']} (id={obj['id']})")
+
+    # ═══════════════════════════════════════════
+    # 24. LinkType: emits_log (App → LogPipeline)
+    # ═══════════════════════════════════════════
+    print("=== Creating LinkType: emits_log ===")
+    lt_emits = post("/ontology/link-types", {
+        "name": "emits_log",
+        "api_name": "app_emits_log",
+        "project_id": pid,
+        "source_object_type_id": a_tid,
+        "target_object_type_id": lp_tid,
+        "cardinality": "many_to_many",
+        "description": "アプリがログを出力するパイプライン",
+        "inverse_name": "collects_from",
+    })
+    lt_emits_id = lt_emits["id"]
+    print(f"  LinkType: emits_log (id={lt_emits_id})")
+
+    # ═══════════════════════════════════════════
+    # 25. LinkType: produces (LogPipeline → TrinoTable)
+    # ═══════════════════════════════════════════
+    print("=== Creating LinkType: produces ===")
+    lt_produces = post("/ontology/link-types", {
+        "name": "produces",
+        "api_name": "pipeline_produces_table",
+        "project_id": pid,
+        "source_object_type_id": lp_tid,
+        "target_object_type_id": tt_tid,
+        "cardinality": "one_to_many",
+        "description": "パイプラインが生成する Trino クエリ可能テーブル",
+        "inverse_name": "produced_by",
+    })
+    lt_produces_id = lt_produces["id"]
+    print(f"  LinkType: produces (id={lt_produces_id})")
+
+    # ═══════════════════════════════════════════
+    # 26. Link Instances: emits_log (App → LogPipeline)
+    # ═══════════════════════════════════════════
+    print("=== Creating Links: emits_log ===")
+    # user-frontend, core-api → access-log-pipeline (HTTP リクエストログ)
+    # user-frontend, core-api, admin-dashboard → app-event-pipeline (イベント)
+    # batch-aggregator → batch-job-pipeline (ジョブ実行ログ)
+    emit_links = [
+        (app_ids[0], pipeline_ids[0], "user-frontend → access-log-pipeline"),
+        (app_ids[1], pipeline_ids[0], "core-api → access-log-pipeline"),
+        (app_ids[0], pipeline_ids[1], "user-frontend → app-event-pipeline"),
+        (app_ids[1], pipeline_ids[1], "core-api → app-event-pipeline"),
+        (app_ids[3], pipeline_ids[1], "admin-dashboard → app-event-pipeline"),
+        (app_ids[2], pipeline_ids[2], "batch-aggregator → batch-job-pipeline"),
+    ]
+    for src, tgt, label in emit_links:
+        link = post("/ontology/links", {
+            "link_type_id": lt_emits_id,
+            "source_object_id": src, "target_object_id": tgt,
+        })
+        print(f"  Link: {label} (id={link['id']})")
+
+    # ═══════════════════════════════════════════
+    # 27. Link Instances: produces (LogPipeline → TrinoTable)
+    # ═══════════════════════════════════════════
+    print("=== Creating Links: produces ===")
+    # access-log-pipeline → access_logs, error_summary
+    # app-event-pipeline → app_events, error_summary
+    # batch-job-pipeline → batch_job_logs
+    prod_links = [
+        (pipeline_ids[0], trino_ids[0], "access-log-pipeline → access_logs"),
+        (pipeline_ids[0], trino_ids[3], "access-log-pipeline → error_summary"),
+        (pipeline_ids[1], trino_ids[1], "app-event-pipeline → app_events"),
+        (pipeline_ids[1], trino_ids[3], "app-event-pipeline → error_summary"),
+        (pipeline_ids[2], trino_ids[2], "batch-job-pipeline → batch_job_logs"),
+    ]
+    for src, tgt, label in prod_links:
+        link = post("/ontology/links", {
+            "link_type_id": lt_produces_id,
+            "source_object_id": src, "target_object_id": tgt,
+        })
+        print(f"  Link: {label} (id={link['id']})")
+
+    # ═══════════════════════════════════════════
     # Summary
     # ═══════════════════════════════════════════
-    total_links = len(maint_links) + len(dev_links) + len(deploy_links) + len(call_links) + len(read_links)
+    all_links = [maint_links, dev_links, deploy_links, call_links, read_links, emit_links, prod_links]
+    total_links = sum(len(l) for l in all_links)
     print("\n✅ Tutorial data seeded successfully!")
     print(f"   Project: {pid}")
     print(f"   Team ObjectType: {t_tid} ({len(teams_data)} instances)")
     print(f"   ServerGroup ObjectType: {sg_tid} ({len(sg_data)} instances)")
     print(f"   App ObjectType: {a_tid} ({len(apps_data)} instances)")
     print(f"   DBTable ObjectType: {db_tid} ({len(tables_data)} instances)")
-    print(f"   LinkTypes: maintains({lt_maint_id}), develops({lt_dev_id}), deployed_on({lt_deploy_id}), calls({lt_calls_id}), reads_table({lt_reads_id})")
+    print(f"   LogPipeline ObjectType: {lp_tid} ({len(pipelines_data)} instances)")
+    print(f"   TrinoTable ObjectType: {tt_tid} ({len(trino_data)} instances)")
+    print(f"   LinkTypes: maintains({lt_maint_id}), develops({lt_dev_id}), deployed_on({lt_deploy_id}), calls({lt_calls_id}), reads_table({lt_reads_id}), emits_log({lt_emits_id}), produces({lt_produces_id})")
     print(f"   Total links: {total_links}")
     print()
     print("   📌 個別サーバーはグラフに含まれません。")
-    print("   📌 ServerGroup の mcp_hint / source_dsn / source_table を参照して")
-    print("      MCP 経由で CMDB (MySQL) から個別サーバー情報を取得してください。")
+    print("   📌 ServerGroup の mcp_hint で CMDB (MySQL) を MCP 参照")
+    print("   📌 App → emits_log → LogPipeline → produces → TrinoTable のパスで")
+    print("      ログ分析用 Trino クエリを MCP 経由で実行できます。")
 
 
 if __name__ == "__main__":
