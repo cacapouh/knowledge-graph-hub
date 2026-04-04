@@ -1,20 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Project, Dataset, ObjectType, Pipeline } from '../api/types'
-import { FolderKanban, Database, Share2, GitBranch } from 'lucide-react'
+import type { Project, Dataset, ObjectType } from '../api/types'
+import { FolderKanban, Database, Share2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.get<Project[]>('/projects') })
   const { data: datasets } = useQuery({ queryKey: ['datasets'], queryFn: () => api.get<Dataset[]>('/datasets') })
   const { data: objectTypes } = useQuery({ queryKey: ['objectTypes'], queryFn: () => api.get<ObjectType[]>('/ontology/object-types') })
-  const { data: pipelines } = useQuery({ queryKey: ['pipelines'], queryFn: () => api.get<Pipeline[]>('/pipelines') })
 
   const stats = [
     { label: 'Projects', value: projects?.length ?? 0, icon: FolderKanban, color: 'bg-blue-500', href: '/projects' },
     { label: 'Datasets', value: datasets?.length ?? 0, icon: Database, color: 'bg-emerald-500', href: '/datasets' },
     { label: 'Object Types', value: objectTypes?.length ?? 0, icon: Share2, color: 'bg-purple-500', href: '/ontology' },
-    { label: 'Pipelines', value: pipelines?.length ?? 0, icon: GitBranch, color: 'bg-amber-500', href: '/pipelines' },
   ]
 
   return (

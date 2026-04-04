@@ -4,7 +4,6 @@ import {
   FolderKanban,
   Database,
   Share2,
-  GitBranch,
   Hexagon,
   BookOpen,
   Network,
@@ -16,7 +15,6 @@ const navItems = [
   { to: '/datasets', icon: Database, label: 'Datasets' },
   { to: '/ontology', icon: Share2, label: 'Ontology' },
   { to: '/graph', icon: Network, label: 'Graph' },
-  { to: '/pipelines', icon: GitBranch, label: 'Pipelines' },
 ]
 
 export default function Sidebar() {

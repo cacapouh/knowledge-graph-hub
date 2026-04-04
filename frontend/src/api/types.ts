@@ -112,28 +112,4 @@ export interface LinkInstance {
   created_at: string
 }
 
-// --- Pipelines ---
-export interface Pipeline {
-  id: number
-  name: string
-  description: string
-  project_id: number
-  status: string
-  config: Record<string, unknown>
-  schedule: Record<string, unknown>
-  input_dataset_ids: number[]
-  output_dataset_id: number | null
-  created_by: number | null
-  created_at: string
-  updated_at: string
-}
 
-export interface PipelineRun {
-  id: number
-  pipeline_id: number
-  status: string
-  started_at: string | null
-  completed_at: string | null
-  error_message: string | null
-  metrics: Record<string, unknown>
-}

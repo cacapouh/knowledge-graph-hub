@@ -6,7 +6,6 @@ from app.models.ontology import (
     Interface, ObjectInstance, LinkInstance,
     DataType, Cardinality,
 )
-from app.models.pipeline import Pipeline, PipelineStep, PipelineRun
 
 __all__ = [
     "User",
@@ -22,7 +21,4 @@ __all__ = [
     "LinkInstance",
     "DataType",
     "Cardinality",
-    "Pipeline",
-    "PipelineStep",
-    "PipelineRun",
 ]

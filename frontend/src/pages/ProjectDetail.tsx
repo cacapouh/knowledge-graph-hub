@@ -1,8 +1,8 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Project, Dataset, ObjectType, Pipeline } from '../api/types'
-import { Database, Share2, GitBranch } from 'lucide-react'
+import type { Project, Dataset, ObjectType } from '../api/types'
+import { Database, Share2 } from 'lucide-react'
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -23,11 +23,6 @@ export default function ProjectDetail() {
     queryFn: () => api.get<ObjectType[]>(`/ontology/object-types?project_id=${projectId}`),
   })
 
-  const { data: pipelines } = useQuery({
-    queryKey: ['pipelines', { projectId }],
-    queryFn: () => api.get<Pipeline[]>(`/pipelines?project_id=${projectId}`),
-  })
-
   if (!project) return <div className="text-gray-400">Loading...</div>
 
   return (
@@ -38,7 +33,7 @@ export default function ProjectDetail() {
         <p className="text-gray-500 mt-1">{project.description}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Datasets */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -78,26 +73,6 @@ export default function ProjectDetail() {
                     <span className="font-medium">{ot.name}</span>
                   </div>
                 </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Pipelines */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <GitBranch className="w-5 h-5 text-amber-500" />
-            <h2 className="font-semibold">Pipelines ({pipelines?.length ?? 0})</h2>
-          </div>
-          {pipelines?.length === 0 ? (
-            <p className="text-gray-400 text-sm">No pipelines</p>
-          ) : (
-            <div className="space-y-2">
-              {pipelines?.map((p) => (
-                <div key={p.id} className="p-2 rounded-lg bg-gray-50 text-sm">
-                  <div className="font-medium">{p.name}</div>
-                  <div className="text-xs text-gray-400">{p.status}</div>
-                </div>
               ))}
             </div>
           )}
