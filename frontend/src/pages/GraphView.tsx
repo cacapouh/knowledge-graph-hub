@@ -19,7 +19,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
 import type { ObjectType, ObjectInstance, LinkType, LinkInstance } from '../api/types'
-import { Plus, Trash2, X, Link as LinkIcon } from 'lucide-react'
+import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react'
 
 /* ─── Custom Node ─── */
 function GraphNode({ data, selected }: NodeProps) {
@@ -57,6 +57,44 @@ function GraphNode({ data, selected }: NodeProps) {
 }
 
 const nodeTypes = { graphNode: GraphNode }
+
+/* ─── Edge color helpers ─── */
+const EDGE_COLORS = [
+  '#3b82f6', // blue
+  '#ef4444', // red
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#f97316', // orange
+]
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '')
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')
+}
+
+function blendColors(colors: string[]): string {
+  if (colors.length === 0) return '#6b7280'
+  if (colors.length === 1) return colors[0]
+  const rgbs = colors.map(hexToRgb)
+  const avg: [number, number, number] = [0, 0, 0]
+  for (const [r, g, b] of rgbs) {
+    avg[0] += r
+    avg[1] += g
+    avg[2] += b
+  }
+  return rgbToHex(avg[0] / rgbs.length, avg[1] / rgbs.length, avg[2] / rgbs.length)
+}
+
+function buildLinkTypeColorMap(linkTypes: LinkType[]): Map<number, string> {
+  return new Map(linkTypes.map((lt, i) => [lt.id, EDGE_COLORS[i % EDGE_COLORS.length]]))
+}
 
 /* ─── Layout helpers ─── */
 function layoutNodes(
@@ -107,8 +145,33 @@ function layoutNodes(
 
 function buildEdges(links: LinkInstance[], linkTypes: LinkType[]): Edge[] {
   const ltMap = new Map(linkTypes.map((lt) => [lt.id, lt]))
+  const colorMap = buildLinkTypeColorMap(linkTypes)
+
+  // Detect overlapping edges (same source-target pair, either direction)
+  const pairKey = (s: number, t: number) => `${Math.min(s, t)}-${Math.max(s, t)}`
+  const pairLinks = new Map<string, LinkInstance[]>()
+  for (const link of links) {
+    const key = pairKey(link.source_object_id, link.target_object_id)
+    const arr = pairLinks.get(key) || []
+    arr.push(link)
+    pairLinks.set(key, arr)
+  }
+
   return links.map((link) => {
     const lt = ltMap.get(link.link_type_id)
+    const key = pairKey(link.source_object_id, link.target_object_id)
+    const siblings = pairLinks.get(key) || [link]
+    const isOverlap = siblings.length > 1
+
+    // For overlapping edges: blend all sibling colors; for single: use own color
+    let edgeColor: string
+    if (isOverlap) {
+      const siblingColors = [...new Set(siblings.map((s) => colorMap.get(s.link_type_id) || '#6b7280'))]
+      edgeColor = blendColors(siblingColors)
+    } else {
+      edgeColor = colorMap.get(link.link_type_id) || '#6b7280'
+    }
+
     return {
       id: `link-${link.id}`,
       source: `obj-${link.source_object_id}`,
@@ -116,9 +179,11 @@ function buildEdges(links: LinkInstance[], linkTypes: LinkType[]): Edge[] {
       label: lt?.name || '',
       type: 'smoothstep',
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-      style: { strokeWidth: 2 },
-      data: { linkId: link.id, linkTypeId: link.link_type_id },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: edgeColor },
+      style: { strokeWidth: 2, stroke: edgeColor },
+      labelStyle: { fill: edgeColor, fontWeight: 600, fontSize: 11 },
+      labelBgStyle: { fill: 'white', fillOpacity: 0.85 },
+      data: { linkId: link.id, linkTypeId: link.link_type_id, edgeColor },
     }
   })
 }
@@ -132,6 +197,9 @@ export default function GraphView() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showLinkForm, setShowLinkForm] = useState(false)
   const [linkForm, setLinkForm] = useState({ linkTypeId: '' as number | '' })
+  const [showFilters, setShowFilters] = useState(false)
+  const [hiddenNodeTypes, setHiddenNodeTypes] = useState<Set<number>>(new Set())
+  const [hiddenLinkTypes, setHiddenLinkTypes] = useState<Set<number>>(new Set())
 
   // Queries
   const { data: objectTypes = [] } = useQuery({
@@ -178,19 +246,57 @@ export default function GraphView() {
     },
   })
 
+  // Filtered data
+  const filteredObjects = useMemo(
+    () => allObjects.filter((o) => !hiddenNodeTypes.has(o.object_type_id)),
+    [allObjects, hiddenNodeTypes],
+  )
+  const visibleObjectIds = useMemo(
+    () => new Set(filteredObjects.map((o) => o.id)),
+    [filteredObjects],
+  )
+  const filteredLinks = useMemo(
+    () =>
+      allLinks.filter(
+        (l) =>
+          !hiddenLinkTypes.has(l.link_type_id) &&
+          visibleObjectIds.has(l.source_object_id) &&
+          visibleObjectIds.has(l.target_object_id),
+      ),
+    [allLinks, hiddenLinkTypes, visibleObjectIds],
+  )
+
   // Build graph when data changes
   useEffect(() => {
-    if (objectTypes.length && allObjects.length) {
-      const newNodes = layoutNodes(allObjects, objectTypes)
+    if (objectTypes.length && filteredObjects.length) {
+      const newNodes = layoutNodes(filteredObjects, objectTypes)
       setNodes(newNodes)
+    } else if (filteredObjects.length === 0) {
+      setNodes([])
     }
-  }, [allObjects, objectTypes, setNodes])
+  }, [filteredObjects, objectTypes, setNodes])
 
   useEffect(() => {
-    if (allLinks.length >= 0) {
-      setEdges(buildEdges(allLinks, linkTypes))
-    }
-  }, [allLinks, linkTypes, setEdges])
+    setEdges(buildEdges(filteredLinks, linkTypes))
+  }, [filteredLinks, linkTypes, setEdges])
+
+  const toggleNodeType = useCallback((typeId: number) => {
+    setHiddenNodeTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(typeId)) next.delete(typeId)
+      else next.add(typeId)
+      return next
+    })
+  }, [])
+
+  const toggleLinkType = useCallback((typeId: number) => {
+    setHiddenLinkTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(typeId)) next.delete(typeId)
+      else next.add(typeId)
+      return next
+    })
+  }, [])
 
   // Handlers
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -243,10 +349,109 @@ export default function GraphView() {
       <div className="flex items-center justify-between px-2 py-3">
         <h1 className="text-2xl font-bold">Graph View</h1>
         <div className="flex items-center gap-3 text-sm text-gray-500">
-          <span>{allObjects.length} nodes</span>
-          <span>{allLinks.length} edges</span>
+          <span>{filteredObjects.length}/{allObjects.length} nodes</span>
+          <span>{filteredLinks.length}/{allLinks.length} edges</span>
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              showFilters || hiddenNodeTypes.size > 0 || hiddenLinkTypes.size > 0
+                ? 'bg-brand-100 text-brand-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            Filter
+            {(hiddenNodeTypes.size > 0 || hiddenLinkTypes.size > 0) && (
+              <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-brand-600 text-white rounded-full">
+                {hiddenNodeTypes.size + hiddenLinkTypes.size}
+              </span>
+            )}
+            {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
         </div>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="mx-2 mb-2 p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-wrap gap-6 text-sm">
+          {/* Node Type Filters */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Node Types</div>
+            <div className="flex flex-wrap gap-2">
+              {objectTypes.map((ot) => {
+                const hidden = hiddenNodeTypes.has(ot.id)
+                const count = allObjects.filter((o) => o.object_type_id === ot.id).length
+                return (
+                  <button
+                    key={ot.id}
+                    onClick={() => toggleNodeType(ot.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all ${
+                      hidden
+                        ? 'bg-white border-gray-200 text-gray-400 opacity-60'
+                        : 'border-transparent text-white shadow-sm'
+                    }`}
+                    style={hidden ? undefined : { backgroundColor: ot.color }}
+                  >
+                    {hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span className="font-medium">{ot.name}</span>
+                    <span className={`text-xs ${hidden ? 'text-gray-400' : 'opacity-75'}`}>({count})</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Link Type Filters */}
+          <div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Link Types</div>
+            <div className="flex flex-wrap gap-2">
+              {linkTypes.map((lt) => {
+                const hidden = hiddenLinkTypes.has(lt.id)
+                const count = allLinks.filter((l) => l.link_type_id === lt.id).length
+                const ltColor = buildLinkTypeColorMap(linkTypes).get(lt.id) || '#6b7280'
+                return (
+                  <button
+                    key={lt.id}
+                    onClick={() => toggleLinkType(lt.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all ${
+                      hidden
+                        ? 'bg-white border-gray-200 text-gray-400 opacity-60'
+                        : 'border-transparent text-white shadow-sm'
+                    }`}
+                    style={hidden ? undefined : { backgroundColor: ltColor }}
+                  >
+                    {hidden ? (
+                      <>
+                        <span className="w-3 h-3 rounded-full border-2 shrink-0" style={{ borderColor: ltColor }} />
+                        <EyeOff className="w-3.5 h-3.5" />
+                      </>
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                    <span className="font-medium">{lt.name}</span>
+                    <span className={`text-xs ${hidden ? 'text-gray-400' : 'opacity-75'}`}>({count})</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Reset */}
+          {(hiddenNodeTypes.size > 0 || hiddenLinkTypes.size > 0) && (
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  setHiddenNodeTypes(new Set())
+                  setHiddenLinkTypes(new Set())
+                }}
+                className="text-xs text-brand-600 hover:text-brand-800 font-medium underline"
+              >
+                Reset All
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Canvas + Sidebar */}
       <div className="flex-1 flex rounded-xl overflow-hidden border border-gray-200">
