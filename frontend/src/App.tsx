@@ -7,6 +7,7 @@ import Datasets from './pages/Datasets'
 import OntologyPage from './pages/OntologyPage'
 import ObjectExplorer from './pages/ObjectExplorer'
 import Pipelines from './pages/Pipelines'
+import GraphView from './pages/GraphView'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/datasets" element={<Datasets />} />
         <Route path="/ontology" element={<OntologyPage />} />
         <Route path="/ontology/explorer/:objectTypeId" element={<ObjectExplorer />} />
+        <Route path="/graph" element={<GraphView />} />
         <Route path="/pipelines" element={<Pipelines />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

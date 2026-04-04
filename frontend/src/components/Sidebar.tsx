@@ -7,6 +7,7 @@ import {
   GitBranch,
   Hexagon,
   BookOpen,
+  Network,
 } from 'lucide-react'
 
 const navItems = [
@@ -14,6 +15,7 @@ const navItems = [
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/datasets', icon: Database, label: 'Datasets' },
   { to: '/ontology', icon: Share2, label: 'Ontology' },
+  { to: '/graph', icon: Network, label: 'Graph' },
   { to: '/pipelines', icon: GitBranch, label: 'Pipelines' },
 ]
 

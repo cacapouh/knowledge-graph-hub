@@ -204,18 +204,15 @@ async def create_action_type(
 
 @router.get("/objects", response_model=list[ObjectInstanceResponse])
 async def list_objects(
-    object_type_id: int,
+    object_type_id: int | None = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(ObjectInstance)
-        .where(ObjectInstance.object_type_id == object_type_id)
-        .order_by(ObjectInstance.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
+    query = select(ObjectInstance).order_by(ObjectInstance.created_at.desc())
+    if object_type_id is not None:
+        query = query.where(ObjectInstance.object_type_id == object_type_id)
+    result = await db.execute(query.offset(skip).limit(limit))
     return result.scalars().all()
 
 
@@ -274,6 +271,20 @@ async def delete_object(
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 # Link Instances
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+
+@router.get("/links", response_model=list[LinkInstanceResponse])
+async def list_all_links(
+    link_type_id: int | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(LinkInstance).order_by(LinkInstance.id)
+    if link_type_id is not None:
+        query = query.where(LinkInstance.link_type_id == link_type_id)
+    result = await db.execute(query.offset(skip).limit(limit))
+    return result.scalars().all()
+
 
 @router.get("/objects/{object_id}/links", response_model=list[LinkInstanceResponse])
 async def list_object_links(
