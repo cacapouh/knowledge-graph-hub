@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactFlow, {
   Node,
@@ -15,6 +16,7 @@ import ReactFlow, {
   Handle,
   Position,
   Panel,
+  ReactFlowInstance,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
@@ -191,6 +193,7 @@ function buildEdges(links: LinkInstance[], linkTypes: LinkType[]): Edge[] {
 /* ─── Main Component ─── */
 export default function GraphView() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
@@ -200,6 +203,8 @@ export default function GraphView() {
   const [showFilters, setShowFilters] = useState(false)
   const [hiddenNodeTypes, setHiddenNodeTypes] = useState<Set<number>>(new Set())
   const [hiddenLinkTypes, setHiddenLinkTypes] = useState<Set<number>>(new Set())
+  const rfInstance = useRef<ReactFlowInstance | null>(null)
+  const highlightApplied = useRef(false)
 
   // Queries
   const { data: objectTypes = [] } = useQuery({
@@ -275,6 +280,29 @@ export default function GraphView() {
       setNodes([])
     }
   }, [filteredObjects, objectTypes, setNodes])
+
+  // Auto-highlight from URL query param (?highlight=objectId)
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight')
+    if (!highlightId || highlightApplied.current || nodes.length === 0) return
+    const targetNodeId = `obj-${highlightId}`
+    const targetNode = nodes.find((n) => n.id === targetNodeId)
+    if (targetNode) {
+      setSelectedNode(targetNode)
+      highlightApplied.current = true
+      // Center on the highlighted node
+      if (rfInstance.current) {
+        const { x, y } = targetNode.position
+        setTimeout(() => rfInstance.current?.setCenter(x + 130, y + 60, { zoom: 1.2, duration: 600 }), 200)
+      }
+      // Clean up the URL param
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('highlight')
+        return next
+      }, { replace: true })
+    }
+  }, [nodes, searchParams, setSearchParams])
 
   // Base edges from data
   const baseEdges = useMemo(
@@ -503,6 +531,7 @@ export default function GraphView() {
             onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}
             onConnect={onConnect}
+            onInit={(instance) => { rfInstance.current = instance }}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={{ padding: 0.3 }}

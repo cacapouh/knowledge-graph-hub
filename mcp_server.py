@@ -29,6 +29,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 API_BASE = "http://127.0.0.1:8001/api"
+FRONTEND_BASE = "http://localhost:5173"
 
 mcp = FastMCP(
     "KG Hub",
@@ -42,6 +43,13 @@ mcp = FastMCP(
 
 def _client() -> httpx.Client:
     return httpx.Client(base_url=API_BASE, timeout=30)
+
+
+def _graph_url(highlight_id: int | None = None) -> str:
+    """Graph View のプレビュー URL を生成する。"""
+    if highlight_id is not None:
+        return f"{FRONTEND_BASE}/graph?highlight={highlight_id}"
+    return f"{FRONTEND_BASE}/graph"
 
 
 # ─── Object Types ───────────────────────────────────────
@@ -85,7 +93,7 @@ def create_object_type(
             "description": description,
         })
         r.raise_for_status()
-    return r.text
+    return f"{r.text}\n\n📊 Graph View: {_graph_url()}"
 
 
 @mcp.tool()
@@ -109,7 +117,7 @@ def update_object_type(
     with _client() as c:
         r = c.patch(f"/ontology/object-types/{object_type_id}", json=body)
         r.raise_for_status()
-    return r.text
+    return f"{r.text}\n\n📊 Graph View: {_graph_url()}"
 
 
 @mcp.tool()
@@ -118,7 +126,7 @@ def delete_object_type(object_type_id: int) -> str:
     with _client() as c:
         r = c.delete(f"/ontology/object-types/{object_type_id}")
         r.raise_for_status()
-    return f"ObjectType {object_type_id} deleted"
+    return f"ObjectType {object_type_id} deleted\n\n📊 Graph View: {_graph_url()}"
 
 
 # ─── Property Types ─────────────────────────────────────
@@ -148,7 +156,7 @@ def create_property(
             "description": description,
         })
         r.raise_for_status()
-    return r.text
+    return f"{r.text}\n\n📊 Graph View: {_graph_url()}"
 
 
 # ─── Object Instances ───────────────────────────────────
@@ -186,7 +194,8 @@ def create_object(
             "properties": properties,
         })
         r.raise_for_status()
-    return r.text
+    obj = r.json()
+    return f"{r.text}\n\n📊 Graph View: {_graph_url(obj.get('id'))}"
 
 
 @mcp.tool()
@@ -197,7 +206,7 @@ def update_object(object_id: int, properties: dict) -> str:
             "properties": properties,
         })
         r.raise_for_status()
-    return r.text
+    return f"{r.text}\n\n📊 Graph View: {_graph_url(object_id)}"
 
 
 @mcp.tool()
@@ -206,7 +215,7 @@ def delete_object(object_id: int) -> str:
     with _client() as c:
         r = c.delete(f"/ontology/objects/{object_id}")
         r.raise_for_status()
-    return f"Object {object_id} deleted"
+    return f"Object {object_id} deleted\n\n📊 Graph View: {_graph_url()}"
 
 
 # ─── Link Types ─────────────────────────────────────────
@@ -251,7 +260,7 @@ def create_link_type(
     with _client() as c:
         r = c.post("/ontology/link-types", json=body)
         r.raise_for_status()
-    return r.text
+    return f"{r.text}\n\n📊 Graph View: {_graph_url()}"
 
 
 # ─── Link Instances ─────────────────────────────────────
@@ -288,7 +297,7 @@ def create_link(
     with _client() as c:
         r = c.post("/ontology/links", json=body)
         r.raise_for_status()
-    return r.text
+    return f"{r.text}\n\n📊 Graph View: {_graph_url(source_object_id)}"
 
 
 @mcp.tool()
@@ -297,7 +306,7 @@ def delete_link(link_id: int) -> str:
     with _client() as c:
         r = c.delete(f"/ontology/links/{link_id}")
         r.raise_for_status()
-    return f"Link {link_id} deleted"
+    return f"Link {link_id} deleted\n\n📊 Graph View: {_graph_url()}"
 
 
 # ─── Graph Summary ──────────────────────────────────────
