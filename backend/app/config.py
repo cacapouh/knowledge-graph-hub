@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///./kghub.db"
+    database_url: str = "postgresql+asyncpg://kghub:kghub_secret@localhost:5432/kghub"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"

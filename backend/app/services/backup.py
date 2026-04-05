@@ -1,17 +1,19 @@
 """
 Graph backup service.
 
-Uses SQLite's built-in backup API for safe, consistent snapshots of the database
-while it is actively being used.  Backups are stored in a configurable directory
-(default: ``backups/`` next to the database file).
+Uses ``pg_dump`` / ``pg_restore`` for safe, consistent snapshots of the
+PostgreSQL database while it is actively being used.  Backups are stored
+in a configurable directory (default: ``backups/`` relative to the working
+directory).
 """
 
+import asyncio
 import logging
 import os
-import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import select, func as sa_func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,45 +33,61 @@ MIN_INTERVAL_SECONDS = 5  # debounce: skip if last backup was < N seconds ago
 _last_backup_ts: float = 0.0  # monotonic clock of last successful backup
 
 
-def _db_path() -> Path:
-    """Return the resolved filesystem path of the SQLite database."""
+def _parse_pg_url() -> dict[str, str]:
+    """Parse DATABASE_URL into components usable by pg_dump / pg_restore."""
     url = get_settings().database_url
-    # "sqlite+aiosqlite:///./kghub.db" → "./kghub.db"
-    path_str = url.split("///", 1)[-1]
-    return Path(path_str).resolve()
+    # Convert SQLAlchemy URL to a standard postgresql:// URL
+    raw = url.replace("postgresql+asyncpg://", "postgresql://")
+    parsed = urlparse(raw)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": str(parsed.port or 5432),
+        "user": parsed.username or "kghub",
+        "password": parsed.password or "",
+        "dbname": parsed.path.lstrip("/") or "kghub",
+    }
 
 
 def _backup_dir() -> Path:
     """Return (and ensure) the backup directory."""
-    d = _db_path().parent / "backups"
+    d = Path("backups")
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 # ---------------------------------------------------------------------------
-# Core: create backup using sqlite3.backup()
+# Core: create backup using pg_dump
 # ---------------------------------------------------------------------------
 
-def _create_backup_file(change_type: str) -> tuple[str, int]:
+async def _create_backup_file(change_type: str) -> tuple[str, int]:
     """
-    Synchronously create a backup of the SQLite database.
+    Create a backup of the PostgreSQL database using pg_dump.
 
     Returns (filename, size_bytes).
     """
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
-    filename = f"kghub_backup_{ts}_{change_type}.db"
+    filename = f"kghub_backup_{ts}_{change_type}.dump"
     dest_path = _backup_dir() / filename
 
-    src_path = str(_db_path())
+    pg = _parse_pg_url()
+    env = {**os.environ, "PGPASSWORD": pg["password"]}
 
-    # Use the sqlite3 backup API for a consistent snapshot
-    src = sqlite3.connect(src_path)
-    dst = sqlite3.connect(str(dest_path))
-    try:
-        src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
+    proc = await asyncio.create_subprocess_exec(
+        "pg_dump",
+        "-h", pg["host"],
+        "-p", pg["port"],
+        "-U", pg["user"],
+        "-d", pg["dbname"],
+        "-Fc",  # custom format (compressed, supports pg_restore)
+        "-f", str(dest_path),
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
 
     size_bytes = dest_path.stat().st_size
     logger.info("Backup created: %s (%d bytes)", filename, size_bytes)
@@ -102,7 +120,7 @@ async def create_backup(
             return None
 
     try:
-        filename, size_bytes = _create_backup_file(change_type)
+        filename, size_bytes = await _create_backup_file(change_type)
     except Exception:
         logger.exception("Failed to create backup file")
         return None
@@ -161,10 +179,10 @@ async def delete_backup(db: AsyncSession, backup_id: int) -> bool:
 
 async def restore_backup(db: AsyncSession, backup_id: int) -> bool:
     """
-    Restore the database from a backup.
+    Restore the database from a backup using pg_restore.
 
-    **WARNING**: This replaces the current database file.  The caller should
-    restart the application / reload the engine after calling this.
+    **WARNING**: This replaces the current database contents.  The caller
+    should restart the application / reload the engine after calling this.
     """
     record = await get_backup(db, backup_id)
     if not record:
@@ -174,22 +192,34 @@ async def restore_backup(db: AsyncSession, backup_id: int) -> bool:
     if not fpath.exists():
         return False
 
-    db_path = str(_db_path())
-
     # First, create a safety backup of the current state
     try:
-        _create_backup_file("pre_restore")
+        await _create_backup_file("pre_restore")
     except Exception:
         logger.exception("Failed to create pre-restore safety backup")
 
-    # Use the sqlite3 backup API in reverse
-    src = sqlite3.connect(str(fpath))
-    dst = sqlite3.connect(db_path)
-    try:
-        src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
+    pg = _parse_pg_url()
+    env = {**os.environ, "PGPASSWORD": pg["password"]}
+
+    proc = await asyncio.create_subprocess_exec(
+        "pg_restore",
+        "-h", pg["host"],
+        "-p", pg["port"],
+        "-U", pg["user"],
+        "-d", pg["dbname"],
+        "--clean",       # drop existing objects before restoring
+        "--if-exists",   # don't error if objects don't exist yet
+        str(fpath),
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        err = stderr.decode()
+        # pg_restore returns non-zero for warnings too; log but don't fail
+        logger.warning("pg_restore finished with warnings: %s", err)
 
     logger.info("Database restored from backup: %s", record.filename)
     return True

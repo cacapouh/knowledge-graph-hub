@@ -48,6 +48,9 @@ htmlcov/
 
 # Blog (images are local screenshots)
 docs/blog-mcp-knowledge-graph.md
+docs/blog-mcp-knowledge-graph.html
+docs/blog-mcp-knowledge-graph.pdf
+docs/blog-style.css
 docs/copilot-blog-prompt.md
 docs/images/
 
