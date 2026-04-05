@@ -7,6 +7,7 @@ import {
   Hexagon,
   BookOpen,
   Network,
+  HardDrive,
 } from 'lucide-react'
 
 const navItems = [
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/datasets', icon: Database, label: 'Datasets' },
   { to: '/ontology', icon: Share2, label: 'Ontology' },
   { to: '/graph', icon: Network, label: 'Graph' },
+  { to: '/backups', icon: HardDrive, label: 'Backups' },
 ]
 
 export default function Sidebar() {

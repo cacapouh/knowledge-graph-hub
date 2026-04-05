@@ -7,6 +7,7 @@ import Datasets from './pages/Datasets'
 import OntologyPage from './pages/OntologyPage'
 import ObjectExplorer from './pages/ObjectExplorer'
 import GraphView from './pages/GraphView'
+import Backups from './pages/Backups'
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/ontology" element={<OntologyPage />} />
         <Route path="/ontology/explorer/:objectTypeId" element={<ObjectExplorer />} />
         <Route path="/graph" element={<GraphView />} />
+        <Route path="/backups" element={<Backups />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

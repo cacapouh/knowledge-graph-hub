@@ -112,4 +112,14 @@ export interface LinkInstance {
   created_at: string
 }
 
+// --- Backups ---
+export interface GraphBackup {
+  id: number
+  filename: string
+  change_type: string
+  description: string
+  size_bytes: number
+  created_at: string
+}
+
 
