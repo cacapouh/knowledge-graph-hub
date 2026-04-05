@@ -11,11 +11,12 @@ Note: 個別サーバーはグラフに含めず、ServerGroup の外部DB参照
 (source_dsn / source_table / mcp_hint) を使って MCP 経由で探索する設計。
 ログ分析は App → emits_log → LogPipeline → produces → TrinoTable のパスで。
 """
+import os
 import urllib.request
 import json
 import sys
 
-BASE = "http://127.0.0.1:8001/api"
+BASE = os.environ.get("API_BASE", "http://127.0.0.1:8000/api")
 
 
 def post(path: str, body: dict) -> dict:

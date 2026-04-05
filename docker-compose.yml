@@ -85,6 +85,23 @@ services:
     environment:
       VITE_API_URL: http://backend:8000
 
+  mcp:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    depends_on:
+      - backend
+    volumes:
+      - ./mcp_server.py:/app/mcp_server.py
+    environment:
+      API_BASE: http://backend:8000/api
+      FRONTEND_BASE: http://localhost:5173
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8002"
+    command: python mcp_server.py
+
 volumes:
   postgres_data:
   redis_data:

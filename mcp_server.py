@@ -2,7 +2,7 @@
 KG Hub MCP Server
 =================
 GitHub Copilot (or any MCP client) から Knowledge Graph Hub を操作するための
-MCP サーバー。stdio トランスポートで動作し、バックエンド API を呼び出す。
+MCP サーバー。SSE (HTTP) トランスポートで動作し、バックエンド API を呼び出す。
 
 ツール一覧:
   - list_object_types         : ObjectType 一覧
@@ -25,11 +25,15 @@ MCP サーバー。stdio トランスポートで動作し、バックエンド 
   - search_graph              : グラフ全体のサマリー取得
 """
 
+import os
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-API_BASE = "http://127.0.0.1:8001/api"
-FRONTEND_BASE = "http://localhost:5173"
+API_BASE = os.environ.get("API_BASE", "http://127.0.0.1:8000/api")
+FRONTEND_BASE = os.environ.get("FRONTEND_BASE", "http://localhost:5173")
+MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
+MCP_PORT = int(os.environ.get("MCP_PORT", "8002"))
 
 mcp = FastMCP(
     "KG Hub",
@@ -38,6 +42,8 @@ mcp = FastMCP(
         "社内インフラのナレッジグラフ (Team, ServerGroup, App, DBTable, "
         "LogPipeline, TrinoTable など) を閲覧・編集できます。"
     ),
+    host=MCP_HOST,
+    port=MCP_PORT,
 )
 
 
@@ -349,4 +355,4 @@ def search_graph() -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="sse")
