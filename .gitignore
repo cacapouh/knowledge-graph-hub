@@ -45,3 +45,11 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Blog (images are local screenshots)
+docs/blog-mcp-knowledge-graph.md
+docs/copilot-blog-prompt.md
+docs/images/
+
+# Playwright MCP
+.playwright-mcp/
