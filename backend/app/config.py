@@ -9,16 +9,6 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://kghub:kghub_secret@localhost:5432/kghub"
 
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
-
-    # MinIO
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin123"
-    minio_secure: bool = False
-    minio_bucket: str = "kghub-datasets"
-
     # Auth
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
     algorithm: str = "HS256"

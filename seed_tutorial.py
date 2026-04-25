@@ -33,24 +33,12 @@ def post(path: str, body: dict) -> dict:
 
 def main():
     # ═══════════════════════════════════════════
-    # 1. Project
-    # ═══════════════════════════════════════════
-    print("=== Creating Project ===")
-    project = post("/projects", {
-        "name": "Infra Knowledge",
-        "description": "サーバー管理 × 組織構造 ナレッジグラフ",
-    })
-    pid = project["id"]
-    print(f"  Project: id={pid}")
-
-    # ═══════════════════════════════════════════
-    # 2. Team ObjectType + Properties
+    # 1. Team ObjectType + Properties
     # ═══════════════════════════════════════════
     print("=== Creating Team Object Type ===")
     team_type = post("/ontology/object-types", {
         "name": "Team",
         "api_name": "team",
-        "project_id": pid,
         "description": "開発/インフラチームの情報",
         "color": "#8b5cf6",
         "title_property": "name",
@@ -98,7 +86,6 @@ def main():
     sg_type = post("/ontology/object-types", {
         "name": "ServerGroup",
         "api_name": "server_group",
-        "project_id": pid,
         "description": "サーバー群の論理グループ。個別サーバー情報は外部DB (CMDB) を MCP 経由で参照する。",
         "color": "#f59e0b",
         "title_property": "name",
@@ -188,7 +175,6 @@ def main():
     lt_maintains = post("/ontology/link-types", {
         "name": "maintains",
         "api_name": "team_maintains_group",
-        "project_id": pid,
         "source_object_type_id": t_tid,
         "target_object_type_id": sg_tid,
         "cardinality": "many_to_many",
@@ -224,7 +210,6 @@ def main():
     app_type = post("/ontology/object-types", {
         "name": "App",
         "api_name": "app",
-        "project_id": pid,
         "description": "サーバーにデプロイされているアプリケーション",
         "color": "#10b981",
         "title_property": "name",
@@ -309,7 +294,6 @@ def main():
     lt_develops = post("/ontology/link-types", {
         "name": "develops",
         "api_name": "team_develops_app",
-        "project_id": pid,
         "source_object_type_id": t_tid,
         "target_object_type_id": a_tid,
         "cardinality": "many_to_many",
@@ -326,7 +310,6 @@ def main():
     lt_deploy = post("/ontology/link-types", {
         "name": "deployed_on",
         "api_name": "app_deployed_on_group",
-        "project_id": pid,
         "source_object_type_id": a_tid,
         "target_object_type_id": sg_tid,
         "cardinality": "many_to_many",
@@ -379,7 +362,6 @@ def main():
     db_type = post("/ontology/object-types", {
         "name": "DBTable",
         "api_name": "db_table",
-        "project_id": pid,
         "description": "MySQL テーブル。アプリが参照/書き込みするデータストア",
         "color": "#ef4444",
         "title_property": "name",
@@ -462,7 +444,6 @@ def main():
     lt_calls = post("/ontology/link-types", {
         "name": "calls",
         "api_name": "app_calls_app",
-        "project_id": pid,
         "source_object_type_id": a_tid,
         "target_object_type_id": a_tid,
         "cardinality": "many_to_many",
@@ -479,7 +460,6 @@ def main():
     lt_reads = post("/ontology/link-types", {
         "name": "reads_table",
         "api_name": "app_reads_table",
-        "project_id": pid,
         "source_object_type_id": a_tid,
         "target_object_type_id": db_tid,
         "cardinality": "many_to_many",
@@ -541,7 +521,6 @@ def main():
     lp_type = post("/ontology/object-types", {
         "name": "LogPipeline",
         "api_name": "log_pipeline",
-        "project_id": pid,
         "description": "ログ収集・変換パイプライン (Fluentd/Fluent Bit → S3 → Hive → Trino)",
         "color": "#06b6d4",
         "title_property": "name",
@@ -612,7 +591,6 @@ def main():
     tt_type = post("/ontology/object-types", {
         "name": "TrinoTable",
         "api_name": "trino_table",
-        "project_id": pid,
         "description": "Trino でクエリ可能な Hive テーブル。ログ分析用",
         "color": "#ec4899",
         "title_property": "name",
@@ -687,7 +665,6 @@ def main():
     lt_emits = post("/ontology/link-types", {
         "name": "emits_log",
         "api_name": "app_emits_log",
-        "project_id": pid,
         "source_object_type_id": a_tid,
         "target_object_type_id": lp_tid,
         "cardinality": "many_to_many",
@@ -704,7 +681,6 @@ def main():
     lt_produces = post("/ontology/link-types", {
         "name": "produces",
         "api_name": "pipeline_produces_table",
-        "project_id": pid,
         "source_object_type_id": lp_tid,
         "target_object_type_id": tt_tid,
         "cardinality": "one_to_many",
@@ -763,7 +739,6 @@ def main():
     all_links = [maint_links, dev_links, deploy_links, call_links, read_links, emit_links, prod_links]
     total_links = sum(len(l) for l in all_links)
     print("\n✅ Tutorial data seeded successfully!")
-    print(f"   Project: {pid}")
     print(f"   Team ObjectType: {t_tid} ({len(teams_data)} instances)")
     print(f"   ServerGroup ObjectType: {sg_tid} ({len(sg_data)} instances)")
     print(f"   App ObjectType: {a_tid} ({len(apps_data)} instances)")

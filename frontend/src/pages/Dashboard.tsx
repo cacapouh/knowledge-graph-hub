@@ -1,18 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Project, Dataset, ObjectType } from '../api/types'
-import { FolderKanban, Database, Share2 } from 'lucide-react'
+import type { ObjectType, LinkType } from '../api/types'
+import { Share2, Network } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
-  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.get<Project[]>('/projects') })
-  const { data: datasets } = useQuery({ queryKey: ['datasets'], queryFn: () => api.get<Dataset[]>('/datasets') })
   const { data: objectTypes } = useQuery({ queryKey: ['objectTypes'], queryFn: () => api.get<ObjectType[]>('/ontology/object-types') })
+  const { data: linkTypes } = useQuery({ queryKey: ['linkTypes'], queryFn: () => api.get<LinkType[]>('/ontology/link-types') })
 
   const stats = [
-    { label: 'Projects', value: projects?.length ?? 0, icon: FolderKanban, color: 'bg-blue-500', href: '/projects' },
-    { label: 'Datasets', value: datasets?.length ?? 0, icon: Database, color: 'bg-emerald-500', href: '/datasets' },
     { label: 'Object Types', value: objectTypes?.length ?? 0, icon: Share2, color: 'bg-purple-500', href: '/ontology' },
+    { label: 'Link Types', value: linkTypes?.length ?? 0, icon: Network, color: 'bg-blue-500', href: '/ontology' },
   ]
 
   return (
@@ -37,45 +35,25 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Projects */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="text-lg font-semibold mb-4">Recent Projects</h2>
-          {projects?.length === 0 ? (
-            <p className="text-gray-400 text-sm">No projects yet. Create one to get started.</p>
-          ) : (
-            <div className="space-y-3">
-              {projects?.slice(0, 5).map((p) => (
-                <Link key={p.id} to={`/projects/${p.id}`} className="block p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="font-medium">{p.name}</div>
-                  <div className="text-sm text-gray-500 truncate">{p.description || 'No description'}</div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent Object Types */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="text-lg font-semibold mb-4">Ontology Object Types</h2>
-          {objectTypes?.length === 0 ? (
-            <p className="text-gray-400 text-sm">No object types defined yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {objectTypes?.slice(0, 5).map((ot) => (
-                <Link key={ot.id} to={`/ontology/explorer/${ot.id}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: ot.color }}>
-                    {ot.name[0]}
-                  </div>
-                  <div>
-                    <div className="font-medium">{ot.name}</div>
-                    <div className="text-sm text-gray-500">{ot.api_name}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h2 className="text-lg font-semibold mb-4">Ontology Object Types</h2>
+        {objectTypes?.length === 0 ? (
+          <p className="text-gray-400 text-sm">No object types defined yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {objectTypes?.slice(0, 8).map((ot) => (
+              <Link key={ot.id} to={`/ontology/explorer/${ot.id}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: ot.color }}>
+                  {ot.name[0]}
+                </div>
+                <div>
+                  <div className="font-medium">{ot.name}</div>
+                  <div className="text-sm text-gray-500">{ot.api_name}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

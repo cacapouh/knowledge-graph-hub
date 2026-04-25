@@ -14,44 +14,16 @@ export interface Token {
   user: User
 }
 
-// --- Projects ---
-export interface Project {
-  id: number
-  name: string
-  slug: string
-  description: string
-  owner_id: number
-  created_at: string
-  updated_at: string
-}
-
-// --- Datasets ---
-export interface Dataset {
-  id: number
-  name: string
-  description: string
-  project_id: number
-  schema_def: Record<string, unknown>
-  storage_path: string
-  row_count: number
-  size_bytes: number
-  format: string
-  created_at: string
-  updated_at: string
-}
-
 // --- Ontology ---
 export interface ObjectType {
   id: number
   name: string
   api_name: string
   description: string
-  project_id: number
   primary_key_property: string | null
   title_property: string | null
   icon: string
   color: string
-  dataset_id: number | null
   created_at: string
   updated_at: string
 }
@@ -75,7 +47,6 @@ export interface LinkType {
   name: string
   api_name: string
   description: string
-  project_id: number
   source_object_type_id: number
   target_object_type_id: number
   cardinality: string
@@ -88,7 +59,6 @@ export interface ActionTypeData {
   name: string
   api_name: string
   description: string
-  project_id: number
   object_type_id: number | null
   parameters: unknown[]
   logic: Record<string, unknown>
@@ -112,16 +82,6 @@ export interface LinkInstance {
   created_at: string
 }
 
-// --- Backups ---
-export interface GraphBackup {
-  id: number
-  filename: string
-  change_type: string
-  description: string
-  size_bytes: number
-  created_at: string
-}
-
 // --- Cypher Query ---
 export interface CypherResult {
   objects: ObjectInstance[]
@@ -138,5 +98,3 @@ export interface SavedView {
   created_at: string
   updated_at: string
 }
-
-

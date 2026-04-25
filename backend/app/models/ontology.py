@@ -33,12 +33,10 @@ class ObjectType(Base):
     name = Column(String(255), nullable=False)
     api_name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text, default="")
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     primary_key_property = Column(String(255), nullable=True)
     title_property = Column(String(255), nullable=True)
     icon = Column(String(100), default="cube")
     color = Column(String(7), default="#6366f1")
-    dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=True)  # backing dataset
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -68,7 +66,6 @@ class LinkType(Base):
     name = Column(String(255), nullable=False)
     api_name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text, default="")
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     source_object_type_id = Column(Integer, ForeignKey("object_types.id", ondelete="CASCADE"), nullable=False)
     target_object_type_id = Column(Integer, ForeignKey("object_types.id", ondelete="CASCADE"), nullable=False)
     cardinality = Column(Enum(Cardinality), default=Cardinality.MANY_TO_MANY)
@@ -84,7 +81,6 @@ class ActionType(Base):
     name = Column(String(255), nullable=False)
     api_name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text, default="")
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     object_type_id = Column(Integer, ForeignKey("object_types.id", ondelete="CASCADE"), nullable=True)
     parameters = Column(JSON, default=list)  # parameter definitions
     logic = Column(JSON, default=dict)  # action logic/rules
@@ -100,7 +96,6 @@ class Interface(Base):
     name = Column(String(255), nullable=False)
     api_name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text, default="")
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     properties = Column(JSON, default=list)  # shared property definitions
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

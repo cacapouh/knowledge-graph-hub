@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { ObjectType, PropertyType, LinkType, Project } from '../api/types'
+import type { ObjectType, LinkType } from '../api/types'
 import { Plus, Share2, ArrowRight, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -9,18 +9,17 @@ export default function OntologyPage() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<'objects' | 'links'>('objects')
   const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ name: '', api_name: '', description: '', project_id: '' as number | '', icon: 'cube', color: '#6366f1' })
+  const [formData, setFormData] = useState({ name: '', api_name: '', description: '', icon: 'cube', color: '#6366f1' })
 
   const { data: objectTypes } = useQuery({ queryKey: ['objectTypes'], queryFn: () => api.get<ObjectType[]>('/ontology/object-types') })
   const { data: linkTypes } = useQuery({ queryKey: ['linkTypes'], queryFn: () => api.get<LinkType[]>('/ontology/link-types') })
-  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.get<Project[]>('/projects') })
 
   const createObjectType = useMutation({
     mutationFn: (data: any) => api.post('/ontology/object-types', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['objectTypes'] })
       setShowForm(false)
-      setFormData({ name: '', api_name: '', description: '', project_id: '', icon: 'cube', color: '#6366f1' })
+      setFormData({ name: '', api_name: '', description: '', icon: 'cube', color: '#6366f1' })
     },
   })
 
@@ -63,7 +62,7 @@ export default function OntologyPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            createObjectType.mutate({ ...formData, project_id: Number(formData.project_id) })
+            createObjectType.mutate(formData)
           }}
           className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6 space-y-4"
         >
@@ -86,18 +85,6 @@ export default function OntologyPage() {
                 required
               />
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-            <select
-              value={formData.project_id}
-              onChange={(e) => setFormData({ ...formData, project_id: Number(e.target.value) })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
-              required
-            >
-              <option value="">Select...</option>
-              {projects?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

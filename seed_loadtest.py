@@ -199,13 +199,6 @@ def main():
 
     if links_only:
         print("=== Links-only mode: reusing existing objects ===")
-        # Discover existing project, object types, and instances
-        projects = get("/projects")
-        pid = next((p["id"] for p in projects if p["name"] == "Load Test"), None)
-        if pid is None:
-            print("ERROR: 'Load Test' project not found. Run without --links-only first.")
-            sys.exit(1)
-
         existing_ots = get("/ontology/object-types")
         type_name_to_id = {ot["name"]: ot["id"] for ot in existing_ots}
 
@@ -221,18 +214,7 @@ def main():
         print(f"  Found {total_objects} existing objects")
     else:
         # ═══════════════════════════════════════════
-        # 1. Project
-        # ═══════════════════════════════════════════
-        print("=== Creating Load Test Project ===")
-        project = post("/projects", {
-            "name": "Load Test",
-            "description": "負荷テスト用プロジェクト — 大規模ノード/エッジ",
-        })
-        pid = project["id"]
-        print(f"  Project: id={pid}")
-
-        # ═══════════════════════════════════════════
-        # 2. Object Types + Properties + Instances
+        # 1. Object Types + Properties + Instances
         # ═══════════════════════════════════════════
         type_name_to_id: dict[str, int] = {}
         type_name_to_instance_ids: dict[str, list[int]] = {}
@@ -243,7 +225,6 @@ def main():
             ot = post("/ontology/object-types", {
                 "name": tdef["name"],
                 "api_name": tdef["api_name"],
-                "project_id": pid,
                 "description": tdef["description"],
                 "color": tdef["color"],
                 "title_property": tdef["title_property"],
@@ -288,7 +269,6 @@ def main():
         lt = post("/ontology/link-types", {
             "name": lt_name,
             "api_name": lt_api_name,
-            "project_id": pid,
             "source_object_type_id": src_id,
             "target_object_type_id": tgt_id,
             "cardinality": card,

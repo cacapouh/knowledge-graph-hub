@@ -68,13 +68,10 @@ def _cypher_url(cypher: str) -> str:
 # ─── Object Types ───────────────────────────────────────
 
 @mcp.tool()
-def list_object_types(project_id: int | None = None) -> str:
-    """ObjectType の一覧を取得する。project_id でフィルタ可能。"""
-    params = {}
-    if project_id is not None:
-        params["project_id"] = project_id
+def list_object_types() -> str:
+    """ObjectType の一覧を取得する。"""
     with _client() as c:
-        r = c.get("/ontology/object-types", params=params)
+        r = c.get("/ontology/object-types")
         r.raise_for_status()
     return r.text
 
@@ -91,16 +88,18 @@ def get_object_type(object_type_id: int) -> str:
 @mcp.tool()
 def create_object_type(
     name: str,
-    project_id: int,
+    api_name: str = "",
     color: str = "#6366f1",
     icon: str = "box",
     description: str = "",
 ) -> str:
-    """新しい ObjectType を作成する。color は hex (#rrggbb)、icon は任意文字列。"""
+    """新しい ObjectType を作成する。color は hex (#rrggbb)、icon は任意文字列。api_name 未指定時は name から生成。"""
+    if not api_name:
+        api_name = name.replace(" ", "_").lower()
     with _client() as c:
         r = c.post("/ontology/object-types", json={
             "name": name,
-            "project_id": project_id,
+            "api_name": api_name,
             "color": color,
             "icon": icon,
             "description": description,
@@ -234,13 +233,10 @@ def delete_object(object_id: int) -> str:
 # ─── Link Types ─────────────────────────────────────────
 
 @mcp.tool()
-def list_link_types(project_id: int | None = None) -> str:
+def list_link_types() -> str:
     """LinkType の一覧を取得する。"""
-    params = {}
-    if project_id is not None:
-        params["project_id"] = project_id
     with _client() as c:
-        r = c.get("/ontology/link-types", params=params)
+        r = c.get("/ontology/link-types")
         r.raise_for_status()
     return r.text
 
@@ -248,7 +244,6 @@ def list_link_types(project_id: int | None = None) -> str:
 @mcp.tool()
 def create_link_type(
     name: str,
-    project_id: int,
     source_object_type_id: int,
     target_object_type_id: int,
     api_name: str = "",
@@ -262,7 +257,6 @@ def create_link_type(
     body: dict = {
         "name": name,
         "api_name": api_name,
-        "project_id": project_id,
         "source_object_type_id": source_object_type_id,
         "target_object_type_id": target_object_type_id,
         "cardinality": cardinality,

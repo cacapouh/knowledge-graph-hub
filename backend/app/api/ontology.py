@@ -1,9 +1,9 @@
-﻿from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
-from sqlalchemy import select, or_, and_
+﻿from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
 
-from app.database import get_db, async_session
+from app.database import get_db
 from app.models.ontology import (
     ObjectType, PropertyType, LinkType, ActionType, ObjectInstance, LinkInstance,
 )
@@ -16,19 +16,8 @@ from app.schemas.ontology import (
     LinkInstanceCreate, LinkInstanceResponse,
 )
 from pydantic import BaseModel
-from app.services.backup import create_backup
 
 router = APIRouter(prefix="/api/ontology", tags=["ontology"])
-
-
-async def _auto_backup(change_type: str, description: str = "") -> None:
-    """Create a backup in a fresh session (called from BackgroundTasks)."""
-    async with async_session() as session:
-        try:
-            await create_backup(session, change_type, description)
-            await session.commit()
-        except Exception:
-            await session.rollback()
 
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 # Object Types
@@ -36,29 +25,24 @@ async def _auto_backup(change_type: str, description: str = "") -> None:
 
 @router.get("/object-types", response_model=list[ObjectTypeResponse])
 async def list_object_types(
-    project_id: int | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(ObjectType).order_by(ObjectType.name)
-    if project_id is not None:
-        query = query.where(ObjectType.project_id == project_id)
-    result = await db.execute(query.offset(skip).limit(limit))
+    query = select(ObjectType).order_by(ObjectType.name).offset(skip).limit(limit)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
 @router.post("/object-types", response_model=ObjectTypeResponse, status_code=status.HTTP_201_CREATED)
 async def create_object_type(
     data: ObjectTypeCreate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     obj = ObjectType(**data.model_dump())
     db.add(obj)
     await db.flush()
     await db.refresh(obj)
-    bg.add_task(_auto_backup, "create_object_type", f"Created object type: {obj.name}")
     return obj
 
 
@@ -78,7 +62,6 @@ async def get_object_type(
 async def update_object_type(
     object_type_id: int,
     data: ObjectTypeUpdate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(ObjectType).where(ObjectType.id == object_type_id))
@@ -90,23 +73,19 @@ async def update_object_type(
         setattr(obj, field, value)
     await db.flush()
     await db.refresh(obj)
-    bg.add_task(_auto_backup, "update_object_type", f"Updated object type: {obj.name}")
     return obj
 
 
 @router.delete("/object-types/{object_type_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_object_type(
     object_type_id: int,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(ObjectType).where(ObjectType.id == object_type_id))
     obj = result.scalar_one_or_none()
     if not obj:
         raise HTTPException(status_code=404, detail="Object type not found")
-    name = obj.name
     await db.delete(obj)
-    bg.add_task(_auto_backup, "delete_object_type", f"Deleted object type: {name}")
 
 
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
@@ -129,30 +108,25 @@ async def list_property_types(
 @router.post("/properties", response_model=PropertyTypeResponse, status_code=status.HTTP_201_CREATED)
 async def create_property_type(
     data: PropertyTypeCreate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     prop = PropertyType(**data.model_dump())
     db.add(prop)
     await db.flush()
     await db.refresh(prop)
-    bg.add_task(_auto_backup, "create_property_type", f"Created property: {prop.name}")
     return prop
 
 
 @router.delete("/properties/{property_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_property_type(
     property_id: int,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(PropertyType).where(PropertyType.id == property_id))
     prop = result.scalar_one_or_none()
     if not prop:
         raise HTTPException(status_code=404, detail="Property type not found")
-    name = prop.name
     await db.delete(prop)
-    bg.add_task(_auto_backup, "delete_property_type", f"Deleted property: {name}")
 
 
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
@@ -161,43 +135,34 @@ async def delete_property_type(
 
 @router.get("/link-types", response_model=list[LinkTypeResponse])
 async def list_link_types(
-    project_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(LinkType).order_by(LinkType.name)
-    if project_id is not None:
-        query = query.where(LinkType.project_id == project_id)
-    result = await db.execute(query)
+    result = await db.execute(select(LinkType).order_by(LinkType.name))
     return result.scalars().all()
 
 
 @router.post("/link-types", response_model=LinkTypeResponse, status_code=status.HTTP_201_CREATED)
 async def create_link_type(
     data: LinkTypeCreate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     link = LinkType(**data.model_dump())
     db.add(link)
     await db.flush()
     await db.refresh(link)
-    bg.add_task(_auto_backup, "create_link_type", f"Created link type: {link.name}")
     return link
 
 
 @router.delete("/link-types/{link_type_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_link_type(
     link_type_id: int,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(LinkType).where(LinkType.id == link_type_id))
     link = result.scalar_one_or_none()
     if not link:
         raise HTTPException(status_code=404, detail="Link type not found")
-    name = link.name
     await db.delete(link)
-    bg.add_task(_auto_backup, "delete_link_type", f"Deleted link type: {name}")
 
 
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
@@ -206,27 +171,21 @@ async def delete_link_type(
 
 @router.get("/action-types", response_model=list[ActionTypeResponse])
 async def list_action_types(
-    project_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(ActionType).order_by(ActionType.name)
-    if project_id is not None:
-        query = query.where(ActionType.project_id == project_id)
-    result = await db.execute(query)
+    result = await db.execute(select(ActionType).order_by(ActionType.name))
     return result.scalars().all()
 
 
 @router.post("/action-types", response_model=ActionTypeResponse, status_code=status.HTTP_201_CREATED)
 async def create_action_type(
     data: ActionTypeCreate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     action = ActionType(**data.model_dump())
     db.add(action)
     await db.flush()
     await db.refresh(action)
-    bg.add_task(_auto_backup, "create_action_type", f"Created action type: {action.name}")
     return action
 
 
@@ -254,14 +213,12 @@ async def list_objects(
 @router.post("/objects", response_model=ObjectInstanceResponse, status_code=status.HTTP_201_CREATED)
 async def create_object(
     data: ObjectInstanceCreate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     obj = ObjectInstance(**data.model_dump())
     db.add(obj)
     await db.flush()
     await db.refresh(obj)
-    bg.add_task(_auto_backup, "create_object", f"Created object id={obj.id}")
     return obj
 
 
@@ -281,7 +238,6 @@ async def get_object(
 async def update_object(
     object_id: int,
     data: ObjectInstanceUpdate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(ObjectInstance).where(ObjectInstance.id == object_id))
@@ -291,14 +247,12 @@ async def update_object(
     obj.properties = data.properties
     await db.flush()
     await db.refresh(obj)
-    bg.add_task(_auto_backup, "update_object", f"Updated object id={obj.id}")
     return obj
 
 
 @router.delete("/objects/{object_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_object(
     object_id: int,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(ObjectInstance).where(ObjectInstance.id == object_id))
@@ -306,7 +260,6 @@ async def delete_object(
     if not obj:
         raise HTTPException(status_code=404, detail="Object not found")
     await db.delete(obj)
-    bg.add_task(_auto_backup, "delete_object", f"Deleted object id={object_id}")
 
 
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
@@ -347,21 +300,18 @@ async def list_object_links(
 @router.post("/links", response_model=LinkInstanceResponse, status_code=status.HTTP_201_CREATED)
 async def create_link(
     data: LinkInstanceCreate,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     link = LinkInstance(**data.model_dump())
     db.add(link)
     await db.flush()
     await db.refresh(link)
-    bg.add_task(_auto_backup, "create_link", f"Created link id={link.id}")
     return link
 
 
 @router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_link(
     link_id: int,
-    bg: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(LinkInstance).where(LinkInstance.id == link_id))
@@ -369,7 +319,6 @@ async def delete_link(
     if not link:
         raise HTTPException(status_code=404, detail="Link not found")
     await db.delete(link)
-    bg.add_task(_auto_backup, "delete_link", f"Deleted link id={link_id}")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
