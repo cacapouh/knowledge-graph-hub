@@ -213,6 +213,7 @@ export default function GraphView() {
   const [perfMode, setPerfMode] = useState(false)
   const rfInstance = useRef<ReactFlowInstance | null>(null)
   const highlightApplied = useRef(false)
+  const typeFilterInitialized = useRef(false)
 
   // Cypher query state
   const [cypherInput, setCypherInput] = useState('')
@@ -342,6 +343,27 @@ export default function GraphView() {
       executeCypher(cypherParam)
     }
   }, [searchParams, executeCypher])
+
+  // Initialize hidden type filters from URL ?nodeTypes=&linkTypes= once data is loaded
+  useEffect(() => {
+    if (typeFilterInitialized.current) return
+    if (objectTypes.length === 0 && linkTypes.length === 0) return
+    const nodeTypesParam = searchParams.get('nodeTypes')
+    const linkTypesParam = searchParams.get('linkTypes')
+    if (!nodeTypesParam && !linkTypesParam) {
+      typeFilterInitialized.current = true
+      return
+    }
+    if (nodeTypesParam && objectTypes.length > 0) {
+      const visible = new Set(nodeTypesParam.split(',').map((s: string) => Number(s)).filter((n: number) => !Number.isNaN(n)))
+      setHiddenNodeTypes(new Set(objectTypes.filter((ot: ObjectType) => !visible.has(ot.id)).map((ot: ObjectType) => ot.id)))
+    }
+    if (linkTypesParam && linkTypes.length > 0) {
+      const visible = new Set(linkTypesParam.split(',').map((s: string) => Number(s)).filter((n: number) => !Number.isNaN(n)))
+      setHiddenLinkTypes(new Set(linkTypes.filter((lt: LinkType) => !visible.has(lt.id)).map((lt: LinkType) => lt.id)))
+    }
+    typeFilterInitialized.current = true
+  }, [searchParams, objectTypes, linkTypes])
 
   // Filtered data (Cypher filter takes priority, then manual type filters)
   const filteredObjects = useMemo(
