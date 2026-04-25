@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactFlow, {
@@ -21,14 +21,21 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
 import type { ObjectType, ObjectInstance, LinkType, LinkInstance } from '../api/types'
-import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Play, RotateCcw, Share2, Copy, Check, Zap } from 'lucide-react'
 
-/* ─── Custom Node ─── */
-function GraphNode({ data, selected }: NodeProps) {
-  const truncatedProps = Object.entries(data.properties || {}).slice(0, 3)
+/* ─── Performance thresholds ─── */
+const PERF_NODE_THRESHOLD = 100
+const PERF_EDGE_THRESHOLD = 200
+
+/* ─── Custom Node (memoized) ─── */
+const GraphNode = memo(function GraphNode({ data, selected }: NodeProps) {
+  const isCompact = data.compact
+  const truncatedProps = isCompact ? [] : Object.entries(data.properties || {}).slice(0, 3)
   return (
     <div
-      className={`rounded-xl shadow-lg border-2 min-w-[180px] max-w-[260px] transition-shadow ${
+      className={`rounded-xl border-2 min-w-[180px] max-w-[260px] ${
+        isCompact ? '' : 'shadow-lg transition-shadow'
+      } ${
         selected ? 'shadow-xl ring-2 ring-brand-400' : ''
       }`}
       style={{ borderColor: data.color }}
@@ -56,7 +63,7 @@ function GraphNode({ data, selected }: NodeProps) {
       <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-gray-400" />
     </div>
   )
-}
+})
 
 const nodeTypes = { graphNode: GraphNode }
 
@@ -145,7 +152,7 @@ function layoutNodes(
   return nodes
 }
 
-function buildEdges(links: LinkInstance[], linkTypes: LinkType[]): Edge[] {
+function buildEdges(links: LinkInstance[], linkTypes: LinkType[], lightweight = false): Edge[] {
   const ltMap = new Map(linkTypes.map((lt) => [lt.id, lt]))
   const colorMap = buildLinkTypeColorMap(linkTypes)
 
@@ -178,13 +185,13 @@ function buildEdges(links: LinkInstance[], linkTypes: LinkType[]): Edge[] {
       id: `link-${link.id}`,
       source: `obj-${link.source_object_id}`,
       target: `obj-${link.target_object_id}`,
-      label: lt?.name || '',
+      label: lightweight ? '' : (lt?.name || ''),
       type: 'smoothstep',
-      animated: true,
+      animated: !lightweight,
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: edgeColor },
       style: { strokeWidth: 2, stroke: edgeColor },
-      labelStyle: { fill: edgeColor, fontWeight: 600, fontSize: 11 },
-      labelBgStyle: { fill: 'white', fillOpacity: 0.85 },
+      labelStyle: lightweight ? undefined : { fill: edgeColor, fontWeight: 600, fontSize: 11 },
+      labelBgStyle: lightweight ? undefined : { fill: 'white', fillOpacity: 0.85 },
       data: { linkId: link.id, linkTypeId: link.link_type_id, edgeColor },
     }
   })
@@ -203,8 +210,19 @@ export default function GraphView() {
   const [showFilters, setShowFilters] = useState(false)
   const [hiddenNodeTypes, setHiddenNodeTypes] = useState<Set<number>>(new Set())
   const [hiddenLinkTypes, setHiddenLinkTypes] = useState<Set<number>>(new Set())
+  const [perfMode, setPerfMode] = useState(false)
   const rfInstance = useRef<ReactFlowInstance | null>(null)
   const highlightApplied = useRef(false)
+
+  // Cypher query state
+  const [cypherInput, setCypherInput] = useState('')
+  const [activeCypher, setActiveCypher] = useState<string | null>(null)
+  const [cypherError, setCypherError] = useState<string | null>(null)
+  const [cypherLoading, setCypherLoading] = useState(false)
+  const [cypherObjectIds, setCypherObjectIds] = useState<Set<number> | null>(null)
+  const [cypherLinkIds, setCypherLinkIds] = useState<Set<number> | null>(null)
+  const [copied, setCopied] = useState(false)
+  const cypherInitialized = useRef(false)
 
   // Queries
   const { data: objectTypes = [] } = useQuery({
@@ -251,35 +269,128 @@ export default function GraphView() {
     },
   })
 
-  // Filtered data
+  // ── Cypher query execution ──
+  const executeCypher = useCallback(async (query: string) => {
+    if (!query.trim()) return
+    setCypherLoading(true)
+    setCypherError(null)
+    try {
+      const result = await api.post<{
+        object_ids: number[]
+        link_ids: number[]
+        error: string | null
+      }>('/ontology/cypher', { query })
+      if (result.error) {
+        setCypherError(result.error)
+        setCypherObjectIds(null)
+        setCypherLinkIds(null)
+        setActiveCypher(null)
+      } else {
+        setCypherObjectIds(new Set(result.object_ids))
+        setCypherLinkIds(new Set(result.link_ids))
+        setActiveCypher(query)
+        setCypherError(null)
+        // Update URL
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.set('cypher', query)
+          next.delete('highlight')
+          return next
+        }, { replace: true })
+      }
+    } catch (e: any) {
+      setCypherError(e.message || 'Query failed')
+      setCypherObjectIds(null)
+      setCypherLinkIds(null)
+      setActiveCypher(null)
+    } finally {
+      setCypherLoading(false)
+    }
+  }, [setSearchParams])
+
+  const clearCypher = useCallback(() => {
+    setCypherInput('')
+    setActiveCypher(null)
+    setCypherError(null)
+    setCypherObjectIds(null)
+    setCypherLinkIds(null)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('cypher')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const copyShareLink = useCallback(() => {
+    const query = activeCypher || cypherInput
+    if (!query) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('cypher', query)
+    url.searchParams.delete('highlight')
+    navigator.clipboard.writeText(url.toString())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [activeCypher, cypherInput])
+
+  // Initialize from URL cypher param on mount
+  useEffect(() => {
+    if (cypherInitialized.current) return
+    const cypherParam = searchParams.get('cypher')
+    if (cypherParam) {
+      cypherInitialized.current = true
+      setCypherInput(cypherParam)
+      executeCypher(cypherParam)
+    }
+  }, [searchParams, executeCypher])
+
+  // Filtered data (Cypher filter takes priority, then manual type filters)
   const filteredObjects = useMemo(
-    () => allObjects.filter((o) => !hiddenNodeTypes.has(o.object_type_id)),
-    [allObjects, hiddenNodeTypes],
+    () => {
+      let objs = allObjects.filter((o) => !hiddenNodeTypes.has(o.object_type_id))
+      if (cypherObjectIds) {
+        objs = objs.filter((o) => cypherObjectIds.has(o.id))
+      }
+      return objs
+    },
+    [allObjects, hiddenNodeTypes, cypherObjectIds],
   )
   const visibleObjectIds = useMemo(
     () => new Set(filteredObjects.map((o) => o.id)),
     [filteredObjects],
   )
   const filteredLinks = useMemo(
-    () =>
-      allLinks.filter(
+    () => {
+      let lnks = allLinks.filter(
         (l) =>
           !hiddenLinkTypes.has(l.link_type_id) &&
           visibleObjectIds.has(l.source_object_id) &&
           visibleObjectIds.has(l.target_object_id),
-      ),
-    [allLinks, hiddenLinkTypes, visibleObjectIds],
+      )
+      if (cypherLinkIds) {
+        lnks = lnks.filter((l) => cypherLinkIds.has(l.id))
+      }
+      return lnks
+    },
+    [allLinks, hiddenLinkTypes, visibleObjectIds, cypherLinkIds],
   )
+
+  // Auto-enable performance mode when data exceeds thresholds
+  const autoPerf = filteredObjects.length > PERF_NODE_THRESHOLD || filteredLinks.length > PERF_EDGE_THRESHOLD
+  const isPerf = perfMode || autoPerf
 
   // Build graph when data changes
   useEffect(() => {
     if (objectTypes.length && filteredObjects.length) {
       const newNodes = layoutNodes(filteredObjects, objectTypes)
+      // In performance mode, mark nodes as compact to skip property rendering
+      if (isPerf) {
+        for (const n of newNodes) n.data = { ...n.data, compact: true }
+      }
       setNodes(newNodes)
     } else if (filteredObjects.length === 0) {
       setNodes([])
     }
-  }, [filteredObjects, objectTypes, setNodes])
+  }, [filteredObjects, objectTypes, setNodes, isPerf])
 
   // Auto-highlight from URL query param (?highlight=objectId)
   useEffect(() => {
@@ -304,10 +415,13 @@ export default function GraphView() {
     }
   }, [nodes, searchParams, setSearchParams])
 
+  // Memoize link type color map for reuse in filter panel
+  const linkTypeColorMap = useMemo(() => buildLinkTypeColorMap(linkTypes), [linkTypes])
+
   // Base edges from data
   const baseEdges = useMemo(
-    () => buildEdges(filteredLinks, linkTypes),
-    [filteredLinks, linkTypes],
+    () => buildEdges(filteredLinks, linkTypes, isPerf),
+    [filteredLinks, linkTypes, isPerf],
   )
 
   // Apply highlight when a node is selected
@@ -417,6 +531,18 @@ export default function GraphView() {
           <span>{filteredObjects.length}/{allObjects.length} nodes</span>
           <span>{filteredLinks.length}/{allLinks.length} edges</span>
           <button
+            onClick={() => setPerfMode((v) => !v)}
+            title={isPerf ? 'パフォーマンスモード ON：アニメーション・ラベル・プロパティ非表示' : 'パフォーマンスモードを有効にする'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              isPerf
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            {isPerf ? 'Perf ON' : 'Perf'}
+          </button>
+          <button
             onClick={() => setShowFilters((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               showFilters || hiddenNodeTypes.size > 0 || hiddenLinkTypes.size > 0
@@ -434,6 +560,76 @@ export default function GraphView() {
             {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
         </div>
+      </div>
+
+      {/* Cypher Query Bar */}
+      <div className="mx-2 mb-2">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={cypherInput}
+              onChange={(e) => setCypherInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && cypherInput.trim()) {
+                  executeCypher(cypherInput)
+                }
+              }}
+              placeholder="Cypher クエリ: MATCH (n:Team)-[:belongs_to]->(m:ServerGroup)"
+              className={`w-full pl-3 pr-10 py-2 text-sm font-mono border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 ${
+                cypherError ? 'border-red-300 bg-red-50' : activeCypher ? 'border-brand-400 bg-brand-50' : 'border-gray-200'
+              }`}
+            />
+            {cypherInput && (
+              <button
+                onClick={() => {
+                  setCypherInput('')
+                  if (activeCypher) clearCypher()
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => cypherInput.trim() && executeCypher(cypherInput)}
+            disabled={!cypherInput.trim() || cypherLoading}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Play className="w-4 h-4" />
+            {cypherLoading ? '実行中...' : '実行'}
+          </button>
+          {activeCypher && (
+            <button
+              onClick={clearCypher}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+              title="クエリをリセット"
+            >
+              <RotateCcw className="w-4 h-4" />
+              リセット
+            </button>
+          )}
+          <button
+            onClick={copyShareLink}
+            disabled={!cypherInput.trim()}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="共有リンクをコピー"
+          >
+            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
+            {copied ? 'コピー済' : '共有'}
+          </button>
+        </div>
+        {cypherError && (
+          <div className="mt-1 text-xs text-red-600 font-medium">
+            ⚠ {cypherError}
+          </div>
+        )}
+        {activeCypher && !cypherError && (
+          <div className="mt-1 text-xs text-brand-600 font-medium">
+            ✓ クエリ適用中 — {filteredObjects.length} nodes, {filteredLinks.length} edges
+          </div>
+        )}
       </div>
 
       {/* Filter Panel */}
@@ -473,7 +669,7 @@ export default function GraphView() {
               {linkTypes.map((lt) => {
                 const hidden = hiddenLinkTypes.has(lt.id)
                 const count = allLinks.filter((l) => l.link_type_id === lt.id).length
-                const ltColor = buildLinkTypeColorMap(linkTypes).get(lt.id) || '#6b7280'
+                const ltColor = linkTypeColorMap.get(lt.id) || '#6b7280'
                 return (
                   <button
                     key={lt.id}
@@ -537,17 +733,22 @@ export default function GraphView() {
             fitViewOptions={{ padding: 0.3 }}
             defaultEdgeOptions={{
               type: 'smoothstep',
-              animated: true,
+              animated: !isPerf,
               markerEnd: { type: MarkerType.ArrowClosed },
             }}
+            minZoom={0.1}
+            maxZoom={2}
+            nodesDraggable={!isPerf || nodes.length < 300}
           >
             <Controls position="bottom-left" />
-            <MiniMap
-              position="bottom-right"
-              nodeColor={(n) => n.data?.color || '#6366f1'}
-              maskColor="rgba(0,0,0,0.08)"
-              className="!bg-gray-50 !border-gray-200"
-            />
+            {!isPerf && (
+              <MiniMap
+                position="bottom-right"
+                nodeColor={(n) => n.data?.color || '#6366f1'}
+                maskColor="rgba(0,0,0,0.08)"
+                className="!bg-gray-50 !border-gray-200"
+              />
+            )}
             <Background gap={20} size={1} color="#e5e7eb" />
           </ReactFlow>
         </div>

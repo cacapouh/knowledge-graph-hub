@@ -8,6 +8,7 @@ import {
   BookOpen,
   Network,
   HardDrive,
+  Bookmark,
 } from 'lucide-react'
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/datasets', icon: Database, label: 'Datasets' },
   { to: '/ontology', icon: Share2, label: 'Ontology' },
   { to: '/graph', icon: Network, label: 'Graph' },
+  { to: '/views', icon: Bookmark, label: 'Views' },
   { to: '/backups', icon: HardDrive, label: 'Backups' },
 ]
 

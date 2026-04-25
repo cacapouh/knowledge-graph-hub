@@ -8,7 +8,7 @@ Creates:
   - 39 LinkInstances
 
 Note: 個別サーバーはグラフに含めず、ServerGroup の外部DB参照
-(source_dsn / source_table / mcp_hint) を使って MCP 経由で探索する設計。
+(source_dsn / source_table) を使って MCP 経由で探索する設計。
 ログ分析は App → emits_log → LogPipeline → produces → TrinoTable のパスで。
 """
 import os
@@ -116,7 +116,6 @@ def main():
         ("Source DSN", "source_dsn", "string"),
         ("Source Table", "source_table", "string"),
         ("Source Filter", "source_filter", "string"),
-        ("MCP Hint", "mcp_hint", "string"),
         ("Representative Servers", "representative_servers", "string"),
     ]
     for name, api_name, dtype in sg_props:
@@ -140,11 +139,6 @@ def main():
             "source_dsn": "cmdb-db.internal:3306/cmdb",
             "source_table": "servers",
             "source_filter": "role = 'web' AND env = 'production'",
-            "mcp_hint": "MySQL MCP → cmdb-db.internal:3306/cmdb\n"
-                        "SELECT hostname, ip, status, cpu, memory_gb, launched_at\n"
-                        "  FROM servers\n"
-                        " WHERE role = 'web' AND env = 'production'\n"
-                        " ORDER BY hostname;",
             "representative_servers": "web-prod-01 (10.1.1.11), web-prod-02 (10.1.1.12), web-prod-03 (10.1.1.13)",
         },
         {
@@ -156,14 +150,6 @@ def main():
             "source_dsn": "cmdb-db.internal:3306/cmdb",
             "source_table": "servers",
             "source_filter": "role = 'api' AND env = 'production'",
-            "mcp_hint": "MySQL MCP → cmdb-db.internal:3306/cmdb\n"
-                        "SELECT hostname, ip, status, cpu, memory_gb, launched_at\n"
-                        "  FROM servers\n"
-                        " WHERE role = 'api' AND env = 'production'\n"
-                        " ORDER BY hostname;\n"
-                        "\n"
-                        "※ SOUT サーバーの詳細:\n"
-                        "SELECT * FROM servers WHERE status = 'SOUT' AND role = 'api';",
             "representative_servers": "api-prod-01 (10.1.1.21, SIN), api-prod-02 (10.1.1.22, SOUT)",
         },
         {
@@ -175,14 +161,6 @@ def main():
             "source_dsn": "cmdb-db.internal:3306/cmdb",
             "source_table": "servers",
             "source_filter": "role = 'batch' AND env = 'production'",
-            "mcp_hint": "MySQL MCP → cmdb-db.internal:3306/cmdb\n"
-                        "SELECT hostname, ip, status, cpu, memory_gb, launched_at\n"
-                        "  FROM servers\n"
-                        " WHERE role = 'batch' AND env = 'production'\n"
-                        " ORDER BY hostname;\n"
-                        "\n"
-                        "※ cron ジョブ一覧:\n"
-                        "SELECT * FROM cron_jobs WHERE server_role = 'batch';",
             "representative_servers": "batch-prod-01 (10.1.2.10)",
         },
         {
@@ -194,11 +172,6 @@ def main():
             "source_dsn": "cmdb-db.internal:3306/cmdb",
             "source_table": "servers",
             "source_filter": "env = 'staging'",
-            "mcp_hint": "MySQL MCP → cmdb-db.internal:3306/cmdb\n"
-                        "SELECT hostname, ip, status, role, cpu, memory_gb\n"
-                        "  FROM servers\n"
-                        " WHERE env = 'staging'\n"
-                        " ORDER BY role, hostname;",
             "representative_servers": "web-stg-01 (10.2.1.11), api-stg-01 (10.2.1.21)",
         },
     ]
@@ -422,7 +395,6 @@ def main():
         ("DSN", "dsn", "string"),
         ("Estimated Rows", "estimated_rows", "string"),
         ("Key Columns", "key_columns", "string"),
-        ("MCP Hint", "mcp_hint", "string"),
     ]
     for name, api_name, dtype in db_props:
         p = post("/ontology/properties", {
@@ -443,10 +415,6 @@ def main():
             "dsn": "app-db.internal:3306/app_db",
             "estimated_rows": "~500,000",
             "key_columns": "id (PK), email (UNIQUE), created_at",
-            "mcp_hint": "MySQL MCP → app-db.internal:3306/app_db\n"
-                        "DESCRIBE users;\n"
-                        "SELECT COUNT(*) FROM users;\n"
-                        "SELECT * FROM users ORDER BY created_at DESC LIMIT 10;",
         },
         {
             "name": "orders",
@@ -455,10 +423,6 @@ def main():
             "dsn": "app-db.internal:3306/app_db",
             "estimated_rows": "~2,000,000",
             "key_columns": "id (PK), user_id (FK→users), status, ordered_at",
-            "mcp_hint": "MySQL MCP → app-db.internal:3306/app_db\n"
-                        "DESCRIBE orders;\n"
-                        "SELECT status, COUNT(*) FROM orders GROUP BY status;\n"
-                        "SELECT * FROM orders WHERE ordered_at >= CURDATE() - INTERVAL 7 DAY LIMIT 20;",
         },
         {
             "name": "products",
@@ -467,9 +431,6 @@ def main():
             "dsn": "app-db.internal:3306/app_db",
             "estimated_rows": "~50,000",
             "key_columns": "id (PK), sku (UNIQUE), category, price",
-            "mcp_hint": "MySQL MCP → app-db.internal:3306/app_db\n"
-                        "DESCRIBE products;\n"
-                        "SELECT category, COUNT(*) FROM products GROUP BY category;",
         },
         {
             "name": "daily_reports",
@@ -478,9 +439,6 @@ def main():
             "dsn": "analytics-db.internal:3306/analytics_db",
             "estimated_rows": "~3,000 (日次 × 年数)",
             "key_columns": "id (PK), report_date (UNIQUE), total_orders, total_revenue",
-            "mcp_hint": "MySQL MCP → analytics-db.internal:3306/analytics_db\n"
-                        "DESCRIBE daily_reports;\n"
-                        "SELECT * FROM daily_reports ORDER BY report_date DESC LIMIT 30;",
         },
         {
             "name": "audit_logs",
@@ -489,11 +447,6 @@ def main():
             "dsn": "app-db.internal:3306/app_db",
             "estimated_rows": "~10,000,000",
             "key_columns": "id (PK), user_id, action, resource, created_at",
-            "mcp_hint": "MySQL MCP → app-db.internal:3306/app_db\n"
-                        "DESCRIBE audit_logs;\n"
-                        "SELECT action, COUNT(*) FROM audit_logs\n"
-                        " WHERE created_at >= CURDATE() - INTERVAL 1 DAY\n"
-                        " GROUP BY action ORDER BY COUNT(*) DESC;",
         },
     ]
     table_ids = []
@@ -605,7 +558,6 @@ def main():
         ("Storage", "storage", "string"),
         ("Batch Schedule", "batch_schedule", "string"),
         ("Retention", "retention", "string"),
-        ("MCP Hint", "mcp_hint", "string"),
     ]
     for name, api_name, dtype in lp_props:
         p = post("/ontology/properties", {
@@ -627,8 +579,6 @@ def main():
             "storage": "s3://data-lake/logs/access/ (Parquet, dt=YYYY-MM-DD パーティション)",
             "batch_schedule": "毎時 0分: Hive MSCK REPAIR TABLE (パーティション追加)",
             "retention": "90日 (S3 Lifecycle)",
-            "mcp_hint": "このパイプラインのデータは TrinoTable 'access_logs' を参照してください。\n"
-                        "produces リンクを追って TrinoTable の mcp_hint を確認してください。",
         },
         {
             "name": "app-event-pipeline",
@@ -638,8 +588,6 @@ def main():
             "storage": "s3://data-lake/logs/events/ (Parquet, dt=YYYY-MM-DD パーティション)",
             "batch_schedule": "毎時 0分: Hive MSCK REPAIR TABLE",
             "retention": "180日",
-            "mcp_hint": "このパイプラインのデータは TrinoTable 'app_events' を参照してください。\n"
-                        "produces リンクを追って TrinoTable の mcp_hint を確認してください。",
         },
         {
             "name": "batch-job-pipeline",
@@ -649,8 +597,6 @@ def main():
             "storage": "s3://data-lake/logs/batch_jobs/ (Parquet, dt=YYYY-MM-DD)",
             "batch_schedule": "毎時 0分: Hive MSCK REPAIR TABLE",
             "retention": "365日",
-            "mcp_hint": "このパイプラインのデータは TrinoTable 'batch_job_logs' を参照してください。\n"
-                        "produces リンクを追って TrinoTable の mcp_hint を確認してください。",
         },
     ]
     pipeline_ids = []
@@ -682,7 +628,6 @@ def main():
         ("Partition Key", "partition_key", "string"),
         ("Key Columns", "key_columns", "string"),
         ("Trino Endpoint", "trino_endpoint", "string"),
-        ("MCP Hint", "mcp_hint", "string"),
     ]
     for name, api_name, dtype in tt_props:
         p = post("/ontology/properties", {
@@ -703,26 +648,6 @@ def main():
             "partition_key": "dt (DATE, YYYY-MM-DD)",
             "key_columns": "timestamp, method, path, status, latency_ms, user_id, request_id, app_name",
             "trino_endpoint": "trino.internal:8443/hive",
-            "mcp_hint": "Trino MCP → trino.internal:8443\n"
-                        "-- 試験導入分析: 特定アプリのエラー率・レイテンシを確認\n"
-                        "SELECT app_name, status,\n"
-                        "       COUNT(*) AS cnt,\n"
-                        "       AVG(latency_ms) AS avg_latency,\n"
-                        "       APPROX_PERCENTILE(latency_ms, 0.99) AS p99_latency\n"
-                        "  FROM hive.logs.access_logs\n"
-                        " WHERE dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
-                        "   AND app_name = '<アプリ名>'\n"
-                        " GROUP BY app_name, status\n"
-                        " ORDER BY cnt DESC;\n"
-                        "\n"
-                        "-- 時系列トレンド\n"
-                        "SELECT dt,\n"
-                        "       COUNT(*) AS requests,\n"
-                        "       SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) AS errors\n"
-                        "  FROM hive.logs.access_logs\n"
-                        " WHERE dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
-                        "   AND app_name = '<アプリ名>'\n"
-                        " GROUP BY dt ORDER BY dt;",
         },
         {
             "name": "app_events",
@@ -731,22 +656,6 @@ def main():
             "partition_key": "dt (DATE, YYYY-MM-DD)",
             "key_columns": "timestamp, event_type, user_id, app_name, payload, trace_id",
             "trino_endpoint": "trino.internal:8443/hive",
-            "mcp_hint": "Trino MCP → trino.internal:8443\n"
-                        "-- 試験導入分析: イベント種別の頻度\n"
-                        "SELECT event_type, app_name, COUNT(*) AS cnt\n"
-                        "  FROM hive.logs.app_events\n"
-                        " WHERE dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
-                        "   AND app_name = '<アプリ名>'\n"
-                        " GROUP BY event_type, app_name\n"
-                        " ORDER BY cnt DESC\n"
-                        " LIMIT 50;\n"
-                        "\n"
-                        "-- ユニークユーザー数 (DAU)\n"
-                        "SELECT dt, COUNT(DISTINCT user_id) AS dau\n"
-                        "  FROM hive.logs.app_events\n"
-                        " WHERE dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
-                        "   AND app_name = '<アプリ名>'\n"
-                        " GROUP BY dt ORDER BY dt;",
         },
         {
             "name": "batch_job_logs",
@@ -755,18 +664,6 @@ def main():
             "partition_key": "dt (DATE, YYYY-MM-DD)",
             "key_columns": "timestamp, job_name, status, rows_processed, duration_sec, error",
             "trino_endpoint": "trino.internal:8443/hive",
-            "mcp_hint": "Trino MCP → trino.internal:8443\n"
-                        "-- バッチジョブ成功率\n"
-                        "SELECT job_name, status, COUNT(*) AS cnt\n"
-                        "  FROM hive.logs.batch_job_logs\n"
-                        " WHERE dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
-                        " GROUP BY job_name, status;\n"
-                        "\n"
-                        "-- 失敗ジョブの詳細\n"
-                        "SELECT * FROM hive.logs.batch_job_logs\n"
-                        " WHERE status = 'FAILED'\n"
-                        "   AND dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
-                        " ORDER BY timestamp DESC;",
         },
         {
             "name": "error_summary",
@@ -775,21 +672,6 @@ def main():
             "partition_key": "dt (DATE, YYYY-MM-DD)",
             "key_columns": "dt, app_name, error_type, count, sample_trace_id",
             "trino_endpoint": "trino.internal:8443/hive",
-            "mcp_hint": "Trino MCP → trino.internal:8443\n"
-                        "-- 試験導入後のエラーサマリ(★ 最初に実行するとよい)\n"
-                        "SELECT app_name, error_type, SUM(count) AS total_errors\n"
-                        "  FROM hive.logs.error_summary\n"
-                        " WHERE dt >= CURRENT_DATE - INTERVAL '7' DAY\n"
-                        "   AND app_name = '<アプリ名>'\n"
-                        " GROUP BY app_name, error_type\n"
-                        " ORDER BY total_errors DESC;\n"
-                        "\n"
-                        "-- エラーのトレンド\n"
-                        "SELECT dt, SUM(count) AS daily_errors\n"
-                        "  FROM hive.logs.error_summary\n"
-                        " WHERE app_name = '<アプリ名>'\n"
-                        "   AND dt >= CURRENT_DATE - INTERVAL '30' DAY\n"
-                        " GROUP BY dt ORDER BY dt;",
         },
     ]
     trino_ids = []
@@ -892,7 +774,7 @@ def main():
     print(f"   Total links: {total_links}")
     print()
     print("   📌 個別サーバーはグラフに含まれません。")
-    print("   📌 ServerGroup の mcp_hint で CMDB (MySQL) を MCP 参照")
+    print("   📌 ServerGroup の source_dsn / source_table で CMDB (MySQL) を MCP 参照")
     print("   📌 App → emits_log → LogPipeline → produces → TrinoTable のパスで")
     print("      ログ分析用 Trino クエリを MCP 経由で実行できます。")
 

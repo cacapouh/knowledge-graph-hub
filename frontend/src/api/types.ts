@@ -122,4 +122,21 @@ export interface GraphBackup {
   created_at: string
 }
 
+// --- Cypher Query ---
+export interface CypherResult {
+  objects: ObjectInstance[]
+  links: LinkInstance[]
+}
+
+// --- Saved Views ---
+export interface SavedView {
+  id: number
+  name: string
+  description: string
+  object_type_ids: number[]
+  link_type_ids: number[]
+  created_at: string
+  updated_at: string
+}
+
 

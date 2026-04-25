@@ -1,4 +1,4 @@
-.PHONY: start stop restart build logs seed test health ps help
+.PHONY: start stop restart build logs seed test health ps dump restore help
 
 # === Main commands ===
 
@@ -38,6 +38,18 @@ test:  ## Run API tests
 
 health:  ## Check backend health
 	@curl -sf http://localhost:8000/api/health | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "Backend not reachable"
+
+# === Data management ===
+
+dump:  ## Dump PostgreSQL data to data/dump.sql (git-committable)
+	@mkdir -p data
+	docker compose exec -T postgres pg_dump -U $${POSTGRES_USER:-kghub} --clean --if-exists $${POSTGRES_DB:-kghub} > data/dump.sql
+	@echo "✅ Database dumped to data/dump.sql"
+
+restore:  ## Restore PostgreSQL data from data/dump.sql
+	@test -f data/dump.sql || (echo "❌ data/dump.sql not found. Run 'make dump' first." && exit 1)
+	docker compose exec -T postgres psql -U $${POSTGRES_USER:-kghub} $${POSTGRES_DB:-kghub} < data/dump.sql
+	@echo "✅ Database restored from data/dump.sql"
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'

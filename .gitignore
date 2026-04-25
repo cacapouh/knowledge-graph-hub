@@ -23,7 +23,7 @@ dist/
 build/
 *.whl
 
-# Docker
+# Docker / Data
 postgres_data/
 redis_data/
 minio_data/

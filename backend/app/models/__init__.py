@@ -7,6 +7,7 @@ from app.models.ontology import (
     Interface, ObjectInstance, LinkInstance,
     DataType, Cardinality,
 )
+from app.models.saved_view import SavedView
 
 __all__ = [
     "User",
@@ -23,4 +24,5 @@ __all__ = [
     "LinkInstance",
     "DataType",
     "Cardinality",
+    "SavedView",
 ]
