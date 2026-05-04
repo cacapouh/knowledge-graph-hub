@@ -21,7 +21,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
 import type { ObjectType, ObjectInstance, LinkType, LinkInstance } from '../api/types'
-import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Play, RotateCcw, Share2, Copy, Check, Zap } from 'lucide-react'
+import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Play, RotateCcw, Share2, Copy, Check, Zap, Pencil, Save } from 'lucide-react'
 
 /* ─── Performance thresholds ─── */
 const PERF_NODE_THRESHOLD = 100
@@ -211,6 +211,8 @@ export default function GraphView() {
   const [hiddenNodeTypes, setHiddenNodeTypes] = useState<Set<number>>(new Set())
   const [hiddenLinkTypes, setHiddenLinkTypes] = useState<Set<number>>(new Set())
   const [perfMode, setPerfMode] = useState(false)
+  const [editingProps, setEditingProps] = useState<Record<string, string> | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const rfInstance = useRef<ReactFlowInstance | null>(null)
   const highlightApplied = useRef(false)
   const typeFilterInitialized = useRef(false)
@@ -267,6 +269,15 @@ export default function GraphView() {
       queryClient.invalidateQueries({ queryKey: ['allObjects'] })
       queryClient.invalidateQueries({ queryKey: ['allLinks'] })
       setSelectedNode(null)
+    },
+  })
+
+  const updateObject = useMutation({
+    mutationFn: ({ id, properties }: { id: number; properties: Record<string, unknown> }) =>
+      api.patch(`/ontology/objects/${id}`, { properties }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allObjects'] })
+      setEditingProps(null)
     },
   })
 
@@ -540,6 +551,12 @@ export default function GraphView() {
   }
 
   const selectedNodeData = selectedNode?.data
+
+  // Reset edit/confirm state when switching nodes
+  useEffect(() => {
+    setEditingProps(null)
+    setConfirmDelete(false)
+  }, [selectedNode?.id])
   const selectedLinkType = selectedEdge
     ? linkTypes.find((lt) => lt.id === selectedEdge.data?.linkTypeId)
     : null
@@ -782,25 +799,116 @@ export default function GraphView() {
               <>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-lg">{selectedNodeData.label}</h3>
-                  <button onClick={() => setSelectedNode(null)} className="text-gray-400 hover:text-gray-600">
+                  <button
+                    onClick={() => {
+                      setSelectedNode(null)
+                      setEditingProps(null)
+                      setConfirmDelete(false)
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <span
-                  className="inline-block px-2 py-0.5 text-xs font-medium text-white rounded-full mb-3"
-                  style={{ backgroundColor: selectedNodeData.color }}
-                >
-                  {selectedNodeData.typeName}
-                </span>
-
-                <div className="space-y-2">
-                  {Object.entries(selectedNodeData.properties || {}).map(([k, v]) => (
-                    <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="text-xs font-medium text-gray-500">{k}</div>
-                      <div className="text-sm text-gray-900 break-words">{String(v)}</div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-3">
+                  <span
+                    className="inline-block px-2 py-0.5 text-xs font-medium text-white rounded-full"
+                    style={{ backgroundColor: selectedNodeData.color }}
+                  >
+                    {selectedNodeData.typeName}
+                  </span>
+                  {!editingProps && (
+                    <button
+                      onClick={() => {
+                        const init: Record<string, string> = {}
+                        for (const [k, v] of Object.entries(selectedNodeData.properties || {})) {
+                          init[k] = typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')
+                        }
+                        setEditingProps(init)
+                      }}
+                      className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 px-2 py-1 rounded hover:bg-brand-50"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Edit
+                    </button>
+                  )}
                 </div>
+
+                {editingProps ? (
+                  <div className="space-y-2">
+                    {Object.entries(editingProps).map(([k, v]) => {
+                      const isMultiline = v.length > 60 || v.includes('\n')
+                      return (
+                        <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="text-xs font-medium text-gray-500 mb-1">{k}</div>
+                          {isMultiline ? (
+                            <textarea
+                              value={v}
+                              onChange={(e) => setEditingProps({ ...editingProps, [k]: e.target.value })}
+                              rows={Math.min(8, v.split('\n').length + 1)}
+                              className="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400 font-mono"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={v}
+                              onChange={(e) => setEditingProps({ ...editingProps, [k]: e.target.value })}
+                              className="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        disabled={updateObject.isPending}
+                        onClick={() => {
+                          // Preserve original types where possible
+                          const original = selectedNodeData.properties || {}
+                          const next: Record<string, unknown> = {}
+                          for (const [k, raw] of Object.entries(editingProps)) {
+                            const orig = original[k]
+                            if (typeof orig === 'number') {
+                              const n = Number(raw)
+                              next[k] = Number.isNaN(n) ? raw : n
+                            } else if (typeof orig === 'boolean') {
+                              next[k] = raw === 'true'
+                            } else if (typeof orig === 'object' && orig !== null) {
+                              try {
+                                next[k] = JSON.parse(raw)
+                              } catch {
+                                next[k] = raw
+                              }
+                            } else {
+                              next[k] = raw
+                            }
+                          }
+                          updateObject.mutate({ id: selectedNodeData.objectId, properties: next })
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+                      >
+                        <Save className="w-4 h-4" />
+                        {updateObject.isPending ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => setEditingProps(null)}
+                        disabled={updateObject.isPending}
+                        className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {Object.entries(selectedNodeData.properties || {}).map(([k, v]) => (
+                      <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
+                        <div className="text-xs font-medium text-gray-500">{k}</div>
+                        <div className="text-sm text-gray-900 break-words">{typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Connected links */}
                 <div className="mt-4 pt-3 border-t">
@@ -829,13 +937,40 @@ export default function GraphView() {
                     })}
                 </div>
 
-                <button
-                  onClick={() => deleteObject.mutate(selectedNodeData.objectId)}
-                  className="mt-4 flex items-center gap-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 w-full justify-center"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Object
-                </button>
+                {confirmDelete ? (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-900 mb-3">
+                      本当に削除しますか？関連リンクも全て消えます。
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={deleteObject.isPending}
+                        onClick={() => deleteObject.mutate(selectedNodeData.objectId)}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {deleteObject.isPending ? 'Deleting...' : 'Confirm Delete'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        disabled={deleteObject.isPending}
+                        className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  !editingProps && (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="mt-4 flex items-center gap-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 w-full justify-center"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Object
+                    </button>
+                  )
+                )}
               </>
             )}
 
