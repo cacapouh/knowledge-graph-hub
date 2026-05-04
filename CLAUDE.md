@@ -9,6 +9,7 @@
 - Backend (Python): 触ったファイルに対し `python3 -m py_compile` で構文チェック。テストがあれば pytest。
 - Frontend (TypeScript): `./frontend/node_modules/.bin/tsc -b ./frontend` で型チェック。
 - UI 変更: ブラウザで実際に動かして確認する。利用可能なブラウザ自動化ツール（Playwright MCP など）があれば使う。dev server (`http://localhost:5173`) と backend (`http://localhost:8000`) はすでに起動している前提でよい。
+- E2E 回帰: 画面に触ったら `cd frontend && npm run test:e2e` を流す。golden-path だけだが既存の挙動が壊れていないことを確認できる (`frontend/tests/e2e/`)。
 
 エラー・失敗があれば修正してから先に進む。テストや型チェックが通っていない状態を「完了」と報告しない。
 
