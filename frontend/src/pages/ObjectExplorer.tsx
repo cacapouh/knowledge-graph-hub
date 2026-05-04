@@ -432,15 +432,41 @@ export default function ObjectExplorer() {
               </div>
 
               <div className="space-y-3 mb-6">
-                {Object.entries(selectedObject.properties).map(([key, value]) => {
-                  const propType = properties?.find((p) => p.api_name === key)
+                {(() => {
+                  const props = selectedObject.properties
+                  const seen = new Set<string>()
+                  const rows: { key: string; value: unknown; fromDefault: boolean; propType: PropertyType | undefined }[] = []
+                  for (const p of properties ?? []) {
+                    const has = p.api_name in props && props[p.api_name] !== null && props[p.api_name] !== ''
+                    rows.push({
+                      key: p.api_name,
+                      value: has ? props[p.api_name] : p.default_value,
+                      fromDefault: !has && p.default_value !== null && p.default_value !== undefined,
+                      propType: p,
+                    })
+                    seen.add(p.api_name)
+                  }
+                  for (const [k, v] of Object.entries(props)) {
+                    if (seen.has(k)) continue
+                    rows.push({ key: k, value: v, fromDefault: false, propType: undefined })
+                  }
+                  return rows
+                })().map(({ key, value, fromDefault, propType }) => {
                   const isSkill = propType?.data_type === 'skill'
                   const skill = isSkill ? skillById.get(Number(value)) : undefined
+                  const isEmpty = value === null || value === undefined || value === ''
                   return (
                     <div key={key} className="text-sm">
-                      <div className="text-gray-500 font-medium text-xs uppercase">{key}</div>
+                      <div className="text-gray-500 font-medium text-xs uppercase flex items-center gap-1">
+                        {key}
+                        {fromDefault && (
+                          <span className="text-[10px] tracking-wide text-gray-400">(default)</span>
+                        )}
+                      </div>
                       <div className="mt-0.5">
-                        {isSkill ? (
+                        {isEmpty ? (
+                          <span className="text-gray-400">—</span>
+                        ) : isSkill ? (
                           skill ? (
                             <span className="inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded font-medium">
                               {skill.name}

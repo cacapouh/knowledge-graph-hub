@@ -835,7 +835,20 @@ export default function GraphView() {
                     <button
                       onClick={() => {
                         const init: Record<string, string> = {}
-                        for (const [k, v] of Object.entries(selectedNodeData.properties || {})) {
+                        const props = selectedNodeData.properties || {}
+                        // Seed schema-defined keys (with default_value when instance has no value)
+                        for (const p of selectedNodeProps) {
+                          const has = p.api_name in props && props[p.api_name] !== null && props[p.api_name] !== ''
+                          const v = has ? props[p.api_name] : p.default_value
+                          if (v === null || v === undefined) {
+                            init[p.api_name] = ''
+                          } else {
+                            init[p.api_name] = typeof v === 'object' ? JSON.stringify(v) : String(v)
+                          }
+                        }
+                        // Plus any keys present on the instance but not in the schema
+                        for (const [k, v] of Object.entries(props)) {
+                          if (k in init) continue
                           init[k] = typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')
                         }
                         setEditingProps(init)
@@ -928,14 +941,43 @@ export default function GraphView() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {Object.entries(selectedNodeData.properties || {}).map(([k, v]) => {
-                      const isSkill = propTypeByApiName.get(k)?.data_type === 'skill'
+                    {(() => {
+                      const props = selectedNodeData.properties || {}
+                      const seen = new Set<string>()
+                      const rows: { key: string; value: unknown; fromDefault: boolean; propType: PropertyType | undefined }[] = []
+                      // Schema-defined first (with default fallback)
+                      for (const p of selectedNodeProps) {
+                        const has = p.api_name in props && props[p.api_name] !== null && props[p.api_name] !== ''
+                        rows.push({
+                          key: p.api_name,
+                          value: has ? props[p.api_name] : p.default_value,
+                          fromDefault: !has && p.default_value !== null && p.default_value !== undefined,
+                          propType: p,
+                        })
+                        seen.add(p.api_name)
+                      }
+                      // Plus any extra instance keys (legacy / discovered)
+                      for (const [k, v] of Object.entries(props)) {
+                        if (seen.has(k)) continue
+                        rows.push({ key: k, value: v, fromDefault: false, propType: undefined })
+                      }
+                      return rows
+                    })().map(({ key: k, value: v, fromDefault, propType }) => {
+                      const isSkill = propType?.data_type === 'skill'
                       const skill = isSkill ? skillById.get(Number(v)) : undefined
+                      const isEmpty = v === null || v === undefined || v === ''
                       return (
                         <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
-                          <div className="text-xs font-medium text-gray-500">{k}</div>
+                          <div className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                            {k}
+                            {fromDefault && (
+                              <span className="text-[10px] uppercase tracking-wide text-gray-400">(default)</span>
+                            )}
+                          </div>
                           <div className="text-sm text-gray-900 break-words">
-                            {isSkill ? (
+                            {isEmpty ? (
+                              <span className="text-gray-400">—</span>
+                            ) : isSkill ? (
                               skill ? (
                                 <span className="inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded font-medium">
                                   {skill.name}
