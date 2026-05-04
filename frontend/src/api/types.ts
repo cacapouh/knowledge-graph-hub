@@ -88,6 +88,50 @@ export interface CypherResult {
   links: LinkInstance[]
 }
 
+// --- Graph Pull Request ---
+export type GprStatus = 'open' | 'merged' | 'failed' | 'reverted' | 'closed'
+
+export type GprOperation =
+  | { op: 'create_object'; client_id?: string; object_type: string | number; properties: Record<string, unknown> }
+  | { op: 'update_object'; object_id: number; properties: Record<string, unknown> }
+  | { op: 'delete_object'; object_id: number }
+  | {
+      op: 'create_link'
+      link_type: string | number
+      source: { object_id?: number; client_id?: string }
+      target: { object_id?: number; client_id?: string }
+      properties?: Record<string, unknown>
+    }
+  | { op: 'delete_link'; link_id: number }
+
+export interface GprApplyLogEntry {
+  index: number
+  op: GprOperation
+  ok: boolean
+  error?: string
+  created_object_id?: number
+  updated_object_id?: number
+  deleted_object_id?: number
+  created_link_id?: number
+  deleted_link_id?: number
+  [key: string]: unknown
+}
+
+export interface GraphPullRequest {
+  id: number
+  title: string
+  description: string
+  source: string
+  status: GprStatus
+  auto_merge: boolean
+  operations: GprOperation[]
+  apply_log: GprApplyLogEntry[]
+  inverse_ops: GprOperation[]
+  applied_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 // --- Saved Views ---
 export interface SavedView {
   id: number

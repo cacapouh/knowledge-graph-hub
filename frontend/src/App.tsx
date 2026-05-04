@@ -5,6 +5,8 @@ import OntologyPage from './pages/OntologyPage'
 import ObjectExplorer from './pages/ObjectExplorer'
 import GraphView from './pages/GraphView'
 import SavedViews from './pages/SavedViews'
+import GprList from './pages/GprList'
+import GprDetail from './pages/GprDetail'
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
         <Route path="/ontology/explorer/:objectTypeId" element={<ObjectExplorer />} />
         <Route path="/graph" element={<GraphView />} />
         <Route path="/views" element={<SavedViews />} />
+        <Route path="/gpr" element={<GprList />} />
+        <Route path="/gpr/:id" element={<GprDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

@@ -6,6 +6,7 @@ import {
   BookOpen,
   Network,
   Bookmark,
+  GitPullRequest,
 } from 'lucide-react'
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/ontology', icon: Share2, label: 'Ontology' },
   { to: '/graph', icon: Network, label: 'Graph' },
   { to: '/views', icon: Bookmark, label: 'Views' },
+  { to: '/gpr', icon: GitPullRequest, label: 'Pull Requests' },
 ]
 
 export default function Sidebar() {
