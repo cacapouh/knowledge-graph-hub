@@ -194,60 +194,71 @@ export default function ObjectExplorer() {
             <form
               onSubmit={(e) => {
                 e.preventDefault()
-                let defaultValue: unknown = null
-                if (propForm.default_value !== '') {
-                  if (propForm.data_type === 'skill') {
-                    const n = parseInt(propForm.default_value, 10)
-                    defaultValue = Number.isNaN(n) ? null : n
-                  } else {
-                    defaultValue = propForm.default_value
-                  }
+                if (propForm.data_type === 'skill') {
+                  const skillId = parseInt(propForm.default_value, 10)
+                  const skill = skillById.get(skillId)
+                  if (!skill) return // select is required, but guard anyway
+                  const apiName = skill.name.replace(/\s+/g, '_').toLowerCase()
+                  createProperty.mutate({
+                    name: skill.name,
+                    api_name: apiName,
+                    data_type: 'skill',
+                    is_required: propForm.is_required,
+                    default_value: skill.id,
+                    object_type_id: typeId,
+                  })
+                } else {
+                  createProperty.mutate({
+                    name: propForm.name,
+                    api_name: propForm.api_name,
+                    data_type: 'string',
+                    is_required: propForm.is_required,
+                    default_value: propForm.default_value === '' ? null : propForm.default_value,
+                    object_type_id: typeId,
+                  })
                 }
-                createProperty.mutate({
-                  name: propForm.name,
-                  api_name: propForm.api_name,
-                  data_type: propForm.data_type,
-                  is_required: propForm.is_required,
-                  default_value: defaultValue,
-                  object_type_id: typeId,
-                })
               }}
               className="mb-4 space-y-2 p-3 bg-gray-50 rounded-lg"
             >
-              <input
-                placeholder="Property name"
-                value={propForm.name}
-                onChange={(e) => setPropForm({ ...propForm, name: e.target.value, api_name: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                required
-              />
               <select
                 value={propForm.data_type}
-                onChange={(e) => setPropForm({ ...propForm, data_type: e.target.value as 'string' | 'skill', default_value: '' })}
+                onChange={(e) => setPropForm({ ...propForm, data_type: e.target.value as 'string' | 'skill', default_value: '', name: '', api_name: '' })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
               >
                 <option value="string">string</option>
                 <option value="skill">skill</option>
               </select>
+
               {propForm.data_type === 'skill' ? (
                 <select
                   value={propForm.default_value}
                   onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
                   className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                  required
                 >
-                  <option value="">No default skill</option>
+                  <option value="">— select skill —</option>
                   {skills.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               ) : (
-                <input
-                  placeholder="Default value (optional)"
-                  value={propForm.default_value}
-                  onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                />
+                <>
+                  <input
+                    placeholder="Property name"
+                    value={propForm.name}
+                    onChange={(e) => setPropForm({ ...propForm, name: e.target.value, api_name: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                    required
+                  />
+                  <input
+                    placeholder="Default value (optional)"
+                    value={propForm.default_value}
+                    onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                  />
+                </>
               )}
+
               <label className="flex items-center gap-2 text-xs text-gray-700">
                 <input
                   type="checkbox"
