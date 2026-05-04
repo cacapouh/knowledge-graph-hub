@@ -108,13 +108,17 @@ async def list_property_types(
     return result.scalars().all()
 
 
+_ALLOWED_PROPERTY_DATA_TYPES = {"string", "skill"}
+
+
 @router.post("/properties", response_model=PropertyTypeResponse, status_code=status.HTTP_201_CREATED)
 async def create_property_type(
     data: PropertyTypeCreate,
     db: AsyncSession = Depends(get_db),
 ):
     payload = data.model_dump()
-    payload["data_type"] = "string"  # only string is currently supported
+    if payload.get("data_type") not in _ALLOWED_PROPERTY_DATA_TYPES:
+        payload["data_type"] = "string"
     prop = PropertyType(**payload)
     db.add(prop)
     await db.flush()

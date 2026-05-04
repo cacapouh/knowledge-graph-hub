@@ -6,6 +6,7 @@ from app.models.ontology import (
 )
 from app.models.saved_view import SavedView
 from app.models.gpr import GraphPullRequest
+from app.models.skill import Skill
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "Cardinality",
     "SavedView",
     "GraphPullRequest",
+    "Skill",
 ]

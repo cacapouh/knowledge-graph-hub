@@ -129,6 +129,25 @@ def _coerce_scalar(value: Any, data_type: DataType, prop_name: str) -> Any:
             f"{prop_name}: cannot coerce {value!r} to timestamp"
         )
 
+    if data_type == DataType.SKILL:
+        # Value is a Skill.id (integer). Accept "3" or 3.
+        if isinstance(value, bool):
+            raise PropertyValidationError(
+                f"{prop_name}: skill expects an id (int), got bool"
+            )
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value.strip())
+            except ValueError:
+                raise PropertyValidationError(
+                    f"{prop_name}: skill expects an id (int), got {value!r}"
+                )
+        raise PropertyValidationError(
+            f"{prop_name}: skill expects an id (int), got {type(value).__name__}"
+        )
+
     if data_type == DataType.OBJECT:
         if isinstance(value, dict):
             return value

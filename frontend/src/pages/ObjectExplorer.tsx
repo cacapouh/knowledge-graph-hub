@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { ObjectType, PropertyType, ObjectInstance, LinkInstance } from '../api/types'
+import type { ObjectType, PropertyType, ObjectInstance, LinkInstance, Skill } from '../api/types'
 import { Plus, Trash2, ChevronRight, Wand2 } from 'lucide-react'
 
 interface DiscoveredProperty {
@@ -134,11 +134,12 @@ export default function ObjectExplorer() {
     },
   })
 
-  // Add property form (data_type is fixed to "string")
+  // Add property form (data_type: 'string' | 'skill')
   const [showAddProp, setShowAddProp] = useState(false)
   const [propForm, setPropForm] = useState({
     name: '',
     api_name: '',
+    data_type: 'string' as 'string' | 'skill',
     is_required: false,
     default_value: '',
   })
@@ -148,9 +149,16 @@ export default function ObjectExplorer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['properties', typeId] })
       setShowAddProp(false)
-      setPropForm({ name: '', api_name: '', is_required: false, default_value: '' })
+      setPropForm({ name: '', api_name: '', data_type: 'string', is_required: false, default_value: '' })
     },
   })
+
+  // Skills (used when a property has data_type='skill')
+  const { data: skills = [] } = useQuery({
+    queryKey: ['skills'],
+    queryFn: () => api.get<Skill[]>('/skills'),
+  })
+  const skillById = new Map(skills.map((s) => [s.id, s]))
 
   const titleProp = objectType?.title_property
 
@@ -186,12 +194,21 @@ export default function ObjectExplorer() {
             <form
               onSubmit={(e) => {
                 e.preventDefault()
+                let defaultValue: unknown = null
+                if (propForm.default_value !== '') {
+                  if (propForm.data_type === 'skill') {
+                    const n = parseInt(propForm.default_value, 10)
+                    defaultValue = Number.isNaN(n) ? null : n
+                  } else {
+                    defaultValue = propForm.default_value
+                  }
+                }
                 createProperty.mutate({
                   name: propForm.name,
                   api_name: propForm.api_name,
-                  data_type: 'string',
+                  data_type: propForm.data_type,
                   is_required: propForm.is_required,
-                  default_value: propForm.default_value === '' ? null : propForm.default_value,
+                  default_value: defaultValue,
                   object_type_id: typeId,
                 })
               }}
@@ -204,12 +221,33 @@ export default function ObjectExplorer() {
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
                 required
               />
-              <input
-                placeholder="Default value (optional)"
-                value={propForm.default_value}
-                onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
+              <select
+                value={propForm.data_type}
+                onChange={(e) => setPropForm({ ...propForm, data_type: e.target.value as 'string' | 'skill', default_value: '' })}
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-              />
+              >
+                <option value="string">string</option>
+                <option value="skill">skill</option>
+              </select>
+              {propForm.data_type === 'skill' ? (
+                <select
+                  value={propForm.default_value}
+                  onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                >
+                  <option value="">No default skill</option>
+                  {skills.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  placeholder="Default value (optional)"
+                  value={propForm.default_value}
+                  onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                />
+              )}
               <label className="flex items-center gap-2 text-xs text-gray-700">
                 <input
                   type="checkbox"
@@ -230,8 +268,15 @@ export default function ObjectExplorer() {
               <div key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 text-sm">
                 <div>
                   <span className="font-medium">{p.name}</span>
+                  {p.data_type === 'skill' && (
+                    <span className="ml-2 text-xs text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 font-mono">skill</span>
+                  )}
                   {p.default_value !== null && p.default_value !== undefined && (
-                    <span className="ml-2 text-xs text-gray-400">= {String(p.default_value)}</span>
+                    <span className="ml-2 text-xs text-gray-400">
+                      = {p.data_type === 'skill'
+                        ? (skillById.get(Number(p.default_value))?.name ?? String(p.default_value))
+                        : String(p.default_value)}
+                    </span>
                   )}
                 </div>
                 {p.is_required && <span className="text-xs text-red-400">required</span>}
@@ -309,12 +354,26 @@ export default function ObjectExplorer() {
               {properties?.map((p) => (
                 <div key={p.id}>
                   <label className="text-xs font-medium text-gray-600">{p.name}</label>
-                  <input
-                    value={newProps[p.api_name] ?? ''}
-                    onChange={(e) => setNewProps({ ...newProps, [p.api_name]: e.target.value })}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-                    required={p.is_required}
-                  />
+                  {p.data_type === 'skill' ? (
+                    <select
+                      value={newProps[p.api_name] ?? ''}
+                      onChange={(e) => setNewProps({ ...newProps, [p.api_name]: e.target.value })}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                      required={p.is_required}
+                    >
+                      <option value="">— select skill —</option>
+                      {skills.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={newProps[p.api_name] ?? ''}
+                      onChange={(e) => setNewProps({ ...newProps, [p.api_name]: e.target.value })}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+                      required={p.is_required}
+                    />
+                  )}
                 </div>
               ))}
               <div className="flex gap-2 pt-1">
@@ -363,11 +422,25 @@ export default function ObjectExplorer() {
 
               <div className="space-y-3 mb-6">
                 {Object.entries(selectedObject.properties).map(([key, value]) => {
-                  const s = String(value)
+                  const propType = properties?.find((p) => p.api_name === key)
+                  const isSkill = propType?.data_type === 'skill'
+                  const skill = isSkill ? skillById.get(Number(value)) : undefined
                   return (
                     <div key={key} className="text-sm">
                       <div className="text-gray-500 font-medium text-xs uppercase">{key}</div>
-                      <div className="mt-0.5">{renderPropValue(s)}</div>
+                      <div className="mt-0.5">
+                        {isSkill ? (
+                          skill ? (
+                            <span className="inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded font-medium">
+                              {skill.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">skill #{String(value)} (missing)</span>
+                          )
+                        ) : (
+                          renderPropValue(String(value))
+                        )}
+                      </div>
                     </div>
                   )
                 })}

@@ -20,7 +20,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
-import type { ObjectType, ObjectInstance, LinkType, LinkInstance } from '../api/types'
+import type { ObjectType, ObjectInstance, LinkType, LinkInstance, PropertyType, Skill } from '../api/types'
 import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Play, RotateCcw, Share2, Copy, Check, Zap, Pencil, Save } from 'lucide-react'
 
 /* ─── Performance thresholds ─── */
@@ -244,6 +244,11 @@ export default function GraphView() {
     queryKey: ['allLinks'],
     queryFn: () => api.get<LinkInstance[]>('/ontology/links?limit=1000'),
   })
+  const { data: skills = [] } = useQuery({
+    queryKey: ['skills'],
+    queryFn: () => api.get<Skill[]>('/skills'),
+  })
+  const skillById = new Map(skills.map((s) => [s.id, s]))
 
   // Mutations
   const createLink = useMutation({
@@ -551,6 +556,15 @@ export default function GraphView() {
   }
 
   const selectedNodeData = selectedNode?.data
+  const selectedNodeTypeId: number | undefined = selectedNodeData?.objectTypeId
+
+  // Lazy: fetch PropertyTypes for the selected node's ObjectType
+  const { data: selectedNodeProps = [] } = useQuery({
+    queryKey: ['properties', selectedNodeTypeId],
+    queryFn: () => api.get<PropertyType[]>(`/ontology/object-types/${selectedNodeTypeId}/properties`),
+    enabled: selectedNodeTypeId !== undefined,
+  })
+  const propTypeByApiName = new Map(selectedNodeProps.map((p) => [p.api_name, p]))
 
   // Reset edit/confirm state when switching nodes
   useEffect(() => {
@@ -837,11 +851,24 @@ export default function GraphView() {
                 {editingProps ? (
                   <div className="space-y-2">
                     {Object.entries(editingProps).map(([k, v]) => {
-                      const isMultiline = v.length > 60 || v.includes('\n')
+                      const propType = propTypeByApiName.get(k)
+                      const isSkill = propType?.data_type === 'skill'
+                      const isMultiline = !isSkill && (v.length > 60 || v.includes('\n'))
                       return (
                         <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
                           <div className="text-xs font-medium text-gray-500 mb-1">{k}</div>
-                          {isMultiline ? (
+                          {isSkill ? (
+                            <select
+                              value={v}
+                              onChange={(e) => setEditingProps({ ...editingProps, [k]: e.target.value })}
+                              className="w-full text-sm bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            >
+                              <option value="">— select skill —</option>
+                              {skills.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          ) : isMultiline ? (
                             <textarea
                               value={v}
                               onChange={(e) => setEditingProps({ ...editingProps, [k]: e.target.value })}
@@ -901,12 +928,28 @@ export default function GraphView() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {Object.entries(selectedNodeData.properties || {}).map(([k, v]) => (
-                      <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
-                        <div className="text-xs font-medium text-gray-500">{k}</div>
-                        <div className="text-sm text-gray-900 break-words">{typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)}</div>
-                      </div>
-                    ))}
+                    {Object.entries(selectedNodeData.properties || {}).map(([k, v]) => {
+                      const isSkill = propTypeByApiName.get(k)?.data_type === 'skill'
+                      const skill = isSkill ? skillById.get(Number(v)) : undefined
+                      return (
+                        <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="text-xs font-medium text-gray-500">{k}</div>
+                          <div className="text-sm text-gray-900 break-words">
+                            {isSkill ? (
+                              skill ? (
+                                <span className="inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded font-medium">
+                                  {skill.name}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">skill #{String(v)} (missing)</span>
+                              )
+                            ) : (
+                              typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 
