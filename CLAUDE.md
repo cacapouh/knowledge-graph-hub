@@ -12,7 +12,21 @@
 
 エラー・失敗があれば修正してから先に進む。テストや型チェックが通っていない状態を「完了」と報告しない。
 
-## 2. 自動 commit
+## 2. 機能追加時のスコープ (UI / API / MCP の三面整合)
+
+機能を追加・拡張するときは **画面・API・MCP の3面すべてで同じことができる状態** にする。片面だけ実装して完了にしない。
+
+- **画面** (`frontend/src/pages`, `frontend/src/components`): UI を追加
+- **API** (`backend/app/api/`, `backend/app/schemas/`, `backend/app/models/`): REST エンドポイントを追加または拡張
+- **MCP** (`mcp_server.py`): 対応する `@mcp.tool()` を追加または拡張
+
+新規リソースなら CRUD 4 種すべて、既存リソースに操作を足すなら同じ操作を REST と MCP の両方に追加する。データモデル / Pydantic スキーマもセットで更新。
+
+純粋な表示系（フィルタ、ソート、ハイライト等）は画面のみでよいが、**「人が画面でできる書き込み・問い合わせは LLM が MCP からもできる」を原則** とする。
+
+> 理由: KG Hub は Copilot / Claude Code が主要ユーザー。画面のみの機能は LLM から見えず、PHILOSOPHY の優先順位 #2「LLM が tool として叩きやすいこと」に反する。
+
+## 3. 自動 commit
 
 検証が通ったら、ユーザーの明示確認を求めずに commit する。
 
