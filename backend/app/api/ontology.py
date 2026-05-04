@@ -5,7 +5,7 @@ import re
 
 from app.database import get_db
 from app.models.ontology import (
-    ObjectType, PropertyType, LinkType, ActionType, ObjectInstance, LinkInstance,
+    DataType, ObjectType, PropertyType, LinkType, ActionType, ObjectInstance, LinkInstance,
 )
 from app.schemas.ontology import (
     ObjectTypeCreate, ObjectTypeUpdate, ObjectTypeResponse,
@@ -14,6 +14,9 @@ from app.schemas.ontology import (
     ActionTypeCreate, ActionTypeResponse,
     ObjectInstanceCreate, ObjectInstanceUpdate, ObjectInstanceResponse,
     LinkInstanceCreate, LinkInstanceResponse,
+)
+from app.services.property_validation import (
+    PropertyValidationError, infer_data_type, validate_and_coerce_properties,
 )
 from pydantic import BaseModel
 
@@ -129,6 +132,98 @@ async def delete_property_type(
     await db.delete(prop)
 
 
+# Schema discovery / backfill ─────────────────────────────────────────────────
+
+class DiscoveredProperty(BaseModel):
+    api_name: str
+    inferred_data_type: str
+    is_array: bool
+    sample: object | None = None
+    count: int
+
+
+async def _discover_undefined_keys(
+    db: AsyncSession, object_type_id: int
+) -> list[DiscoveredProperty]:
+    """Return keys present in instances but not yet defined as PropertyTypes."""
+    pt_result = await db.execute(
+        select(PropertyType).where(PropertyType.object_type_id == object_type_id)
+    )
+    defined = {p.api_name for p in pt_result.scalars().all()}
+
+    obj_result = await db.execute(
+        select(ObjectInstance).where(ObjectInstance.object_type_id == object_type_id)
+    )
+    instances = list(obj_result.scalars().all())
+
+    # Per-key: count occurrences and remember first non-null sample.
+    key_count: dict[str, int] = {}
+    key_sample: dict[str, object] = {}
+    for inst in instances:
+        for k, v in (inst.properties or {}).items():
+            if k in defined:
+                continue
+            key_count[k] = key_count.get(k, 0) + 1
+            if k not in key_sample and v is not None and v != "":
+                key_sample[k] = v
+
+    out = []
+    for k, count in sorted(key_count.items()):
+        sample = key_sample.get(k)
+        dtype, is_array = (
+            infer_data_type(sample) if sample is not None else (DataType.STRING, False)
+        )
+        out.append(DiscoveredProperty(
+            api_name=k,
+            inferred_data_type=dtype.value,
+            is_array=is_array,
+            sample=sample,
+            count=count,
+        ))
+    return out
+
+
+@router.get(
+    "/object-types/{object_type_id}/discovered-properties",
+    response_model=list[DiscoveredProperty],
+)
+async def list_discovered_properties(
+    object_type_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """List property keys that exist on instances but have no PropertyType yet."""
+    return await _discover_undefined_keys(db, object_type_id)
+
+
+@router.post(
+    "/object-types/{object_type_id}/sync-schema",
+    response_model=list[PropertyTypeResponse],
+)
+async def sync_schema_from_instances(
+    object_type_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create PropertyTypes for any instance keys not yet defined. Type is inferred."""
+    discovered = await _discover_undefined_keys(db, object_type_id)
+    created: list[PropertyType] = []
+    for d in discovered:
+        prop = PropertyType(
+            object_type_id=object_type_id,
+            name=d.api_name,
+            api_name=d.api_name,
+            data_type=d.inferred_data_type,
+            is_array=d.is_array,
+            is_required=False,
+        )
+        db.add(prop)
+        created.append(prop)
+    if created:
+        await db.flush()
+        for p in created:
+            await db.refresh(p)
+    return created
+
+
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 # Link Types
 # 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
@@ -215,7 +310,13 @@ async def create_object(
     data: ObjectInstanceCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    obj = ObjectInstance(**data.model_dump())
+    try:
+        validated = await validate_and_coerce_properties(
+            db, data.object_type_id, data.properties
+        )
+    except PropertyValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    obj = ObjectInstance(object_type_id=data.object_type_id, properties=validated)
     db.add(obj)
     await db.flush()
     await db.refresh(obj)
@@ -244,7 +345,13 @@ async def update_object(
     obj = result.scalar_one_or_none()
     if not obj:
         raise HTTPException(status_code=404, detail="Object not found")
-    obj.properties = data.properties
+    try:
+        validated = await validate_and_coerce_properties(
+            db, obj.object_type_id, data.properties
+        )
+    except PropertyValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    obj.properties = validated
     await db.flush()
     await db.refresh(obj)
     return obj

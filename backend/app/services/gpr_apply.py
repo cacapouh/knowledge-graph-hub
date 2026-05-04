@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ontology import ObjectType, LinkType, ObjectInstance, LinkInstance
+from app.services.property_validation import validate_and_coerce_properties
 
 
 class GPRApplyError(Exception):
@@ -126,7 +127,7 @@ async def _execute_op(
 
     if kind == "create_object":
         ot = await _resolve_object_type(db, op["object_type"])
-        props = op.get("properties") or {}
+        props = await validate_and_coerce_properties(db, ot.id, op.get("properties") or {})
         obj = ObjectInstance(object_type_id=ot.id, properties=props)
         db.add(obj)
         await db.flush()
@@ -141,7 +142,9 @@ async def _execute_op(
     if kind == "update_object":
         obj = await _get_object(db, int(op["object_id"]))
         prior = dict(obj.properties or {})
-        obj.properties = op["properties"]
+        obj.properties = await validate_and_coerce_properties(
+            db, obj.object_type_id, op["properties"]
+        )
         await db.flush()
         return (
             {"updated_object_id": obj.id},

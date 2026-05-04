@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import engine, Base
@@ -18,6 +19,10 @@ async def lifespan(app: FastAPI):
     # Create tables on startup (use Alembic in production)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Idempotent column adds for tables created by an earlier schema version.
+        await conn.execute(text(
+            "ALTER TABLE property_types ADD COLUMN IF NOT EXISTS default_value JSONB"
+        ))
     yield
     await engine.dispose()
 

@@ -3,7 +3,15 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { ObjectType, PropertyType, ObjectInstance, LinkInstance } from '../api/types'
-import { Plus, Trash2, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, Wand2 } from 'lucide-react'
+
+interface DiscoveredProperty {
+  api_name: string
+  inferred_data_type: string
+  is_array: boolean
+  sample: unknown
+  count: number
+}
 
 const URL_RE = /https?:\/\/[^\s]+/g
 
@@ -70,6 +78,33 @@ export default function ObjectExplorer() {
     queryFn: () => api.get<PropertyType[]>(`/ontology/object-types/${typeId}/properties`),
   })
 
+  const { data: discovered } = useQuery({
+    queryKey: ['discovered-properties', typeId],
+    queryFn: () => api.get<DiscoveredProperty[]>(`/ontology/object-types/${typeId}/discovered-properties`),
+  })
+
+  const invalidateSchema = () => {
+    queryClient.invalidateQueries({ queryKey: ['properties', typeId] })
+    queryClient.invalidateQueries({ queryKey: ['discovered-properties', typeId] })
+  }
+
+  const defineProperty = useMutation({
+    mutationFn: (d: DiscoveredProperty) => api.post('/ontology/properties', {
+      object_type_id: typeId,
+      name: d.api_name,
+      api_name: d.api_name,
+      data_type: d.inferred_data_type,
+      is_array: d.is_array,
+      is_required: false,
+    }),
+    onSuccess: invalidateSchema,
+  })
+
+  const syncAllSchema = useMutation({
+    mutationFn: () => api.post(`/ontology/object-types/${typeId}/sync-schema`, {}),
+    onSuccess: invalidateSchema,
+  })
+
   const { data: objects } = useQuery({
     queryKey: ['objects', typeId],
     queryFn: () => api.get<ObjectInstance[]>(`/ontology/objects?object_type_id=${typeId}`),
@@ -101,16 +136,37 @@ export default function ObjectExplorer() {
 
   // Add property form
   const [showAddProp, setShowAddProp] = useState(false)
-  const [propForm, setPropForm] = useState({ name: '', api_name: '', data_type: 'string' })
+  const [propForm, setPropForm] = useState({
+    name: '',
+    api_name: '',
+    data_type: 'string',
+    is_required: false,
+    default_value: '',
+  })
 
   const createProperty = useMutation({
     mutationFn: (data: any) => api.post('/ontology/properties', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['properties', typeId] })
       setShowAddProp(false)
-      setPropForm({ name: '', api_name: '', data_type: 'string' })
+      setPropForm({ name: '', api_name: '', data_type: 'string', is_required: false, default_value: '' })
     },
   })
+
+  // Coerce default_value string to the target type (best-effort; backend re-validates)
+  function coerceDefault(raw: string, dataType: string): unknown {
+    if (raw === '') return null
+    if (dataType === 'integer') {
+      const n = parseInt(raw, 10)
+      return Number.isNaN(n) ? raw : n
+    }
+    if (dataType === 'float') {
+      const n = Number(raw)
+      return Number.isNaN(n) ? raw : n
+    }
+    if (dataType === 'boolean') return raw.toLowerCase() === 'true'
+    return raw
+  }
 
   const titleProp = objectType?.title_property
 
@@ -146,7 +202,15 @@ export default function ObjectExplorer() {
             <form
               onSubmit={(e) => {
                 e.preventDefault()
-                createProperty.mutate({ ...propForm, object_type_id: typeId })
+                const payload = {
+                  name: propForm.name,
+                  api_name: propForm.api_name,
+                  data_type: propForm.data_type,
+                  is_required: propForm.is_required,
+                  default_value: coerceDefault(propForm.default_value, propForm.data_type),
+                  object_type_id: typeId,
+                }
+                createProperty.mutate(payload)
               }}
               className="mb-4 space-y-2 p-3 bg-gray-50 rounded-lg"
             >
@@ -166,6 +230,20 @@ export default function ObjectExplorer() {
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
+              <input
+                placeholder="Default value (optional)"
+                value={propForm.default_value}
+                onChange={(e) => setPropForm({ ...propForm, default_value: e.target.value })}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
+              />
+              <label className="flex items-center gap-2 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={propForm.is_required}
+                  onChange={(e) => setPropForm({ ...propForm, is_required: e.target.checked })}
+                />
+                Required
+              </label>
               <div className="flex gap-2">
                 <button type="submit" className="px-3 py-1 bg-brand-600 text-white rounded text-xs">Add</button>
                 <button type="button" onClick={() => setShowAddProp(false)} className="px-3 py-1 text-gray-500 text-xs">Cancel</button>
@@ -179,6 +257,9 @@ export default function ObjectExplorer() {
                 <div>
                   <span className="font-medium">{p.name}</span>
                   <span className="ml-2 text-xs text-gray-400 font-mono">{p.data_type}</span>
+                  {p.default_value !== null && p.default_value !== undefined && (
+                    <span className="ml-2 text-xs text-gray-400">= {String(p.default_value)}</span>
+                  )}
                 </div>
                 {p.is_required && <span className="text-xs text-red-400">required</span>}
               </div>
@@ -187,6 +268,51 @@ export default function ObjectExplorer() {
               <p className="text-sm text-gray-400">No properties defined.</p>
             )}
           </div>
+
+          {discovered && discovered.length > 0 && (
+            <div className="mt-5 pt-4 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-amber-700">Discovered ({discovered.length})</h3>
+                  <p className="text-xs text-gray-500">Keys present in instances but undefined in the schema.</p>
+                </div>
+                <button
+                  onClick={() => syncAllSchema.mutate()}
+                  disabled={syncAllSchema.isPending}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
+                  title="Define all discovered properties"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  Sync all
+                </button>
+              </div>
+              <div className="space-y-2">
+                {discovered.map((d) => (
+                  <div key={d.api_name} className="flex items-center justify-between p-2 rounded-lg bg-amber-50 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <div>
+                        <span className="font-medium">{d.api_name}</span>
+                        <span className="ml-2 text-xs text-gray-400 font-mono">
+                          {d.inferred_data_type}{d.is_array ? '[]' : ''}
+                        </span>
+                        <span className="ml-2 text-xs text-gray-400">×{d.count}</span>
+                      </div>
+                      {d.sample !== null && d.sample !== undefined && (
+                        <div className="text-xs text-gray-500 truncate">e.g. {String(d.sample)}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => defineProperty.mutate(d)}
+                      disabled={defineProperty.isPending}
+                      className="ml-2 px-2 py-1 text-xs font-medium text-amber-700 bg-white border border-amber-200 rounded hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      Define
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Objects list */}

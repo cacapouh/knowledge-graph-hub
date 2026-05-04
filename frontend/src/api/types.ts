@@ -38,6 +38,7 @@ export interface PropertyType {
   is_required: boolean
   is_indexed: boolean
   is_array: boolean
+  default_value: unknown
   config: Record<string, unknown>
   created_at: string
 }

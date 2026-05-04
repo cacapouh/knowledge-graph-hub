@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from pydantic import BaseModel
 
 
@@ -49,6 +50,7 @@ class PropertyTypeCreate(BaseModel):
     is_required: bool = False
     is_indexed: bool = False
     is_array: bool = False
+    default_value: Any = None
     config: dict = {}
 
 
@@ -62,6 +64,7 @@ class PropertyTypeResponse(BaseModel):
     is_required: bool
     is_indexed: bool
     is_array: bool
+    default_value: Any = None
     config: dict
     created_at: datetime
 

@@ -22,6 +22,7 @@ venv/
 dist/
 build/
 *.whl
+*.tsbuildinfo
 
 # Docker / Data
 postgres_data/

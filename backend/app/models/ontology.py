@@ -54,6 +54,7 @@ class PropertyType(Base):
     is_required = Column(Boolean, default=False)
     is_indexed = Column(Boolean, default=False)
     is_array = Column(Boolean, default=False)
+    default_value = Column(JSON, nullable=True)  # null = no default
     config = Column(JSON, default=dict)  # additional config (e.g., enum values, format)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
