@@ -185,43 +185,6 @@ def _coerce_value(value: Any, prop: PropertyType) -> Any:
     return [_coerce_scalar(v, inner_type, prop.name) for v in value]
 
 
-_ISO_DATE = "%Y-%m-%d"
-
-
-def infer_data_type(value: Any) -> tuple[DataType, bool]:
-    """Infer (data_type, is_array) from a sample value. Falls back to STRING."""
-    if isinstance(value, list):
-        if value:
-            inner, _ = infer_data_type(value[0])
-        else:
-            inner = DataType.STRING
-        return inner, True
-    if isinstance(value, bool):
-        return DataType.BOOLEAN, False
-    if isinstance(value, int):
-        return DataType.INTEGER, False
-    if isinstance(value, float):
-        return DataType.FLOAT, False
-    if isinstance(value, dict):
-        return DataType.OBJECT, False
-    if isinstance(value, str):
-        s = value.strip()
-        # ISO date / timestamp probe
-        try:
-            date.fromisoformat(s)
-            if "T" not in s:
-                return DataType.DATE, False
-        except ValueError:
-            pass
-        try:
-            datetime.fromisoformat(s.replace("Z", "+00:00"))
-            return DataType.TIMESTAMP, False
-        except ValueError:
-            pass
-        return DataType.STRING, False
-    return DataType.STRING, False
-
-
 async def validate_and_coerce_properties(
     db: AsyncSession,
     object_type_id: int,

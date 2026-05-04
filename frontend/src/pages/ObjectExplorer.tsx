@@ -134,12 +134,11 @@ export default function ObjectExplorer() {
     },
   })
 
-  // Add property form
+  // Add property form (data_type is fixed to "string")
   const [showAddProp, setShowAddProp] = useState(false)
   const [propForm, setPropForm] = useState({
     name: '',
     api_name: '',
-    data_type: 'string',
     is_required: false,
     default_value: '',
   })
@@ -149,24 +148,9 @@ export default function ObjectExplorer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['properties', typeId] })
       setShowAddProp(false)
-      setPropForm({ name: '', api_name: '', data_type: 'string', is_required: false, default_value: '' })
+      setPropForm({ name: '', api_name: '', is_required: false, default_value: '' })
     },
   })
-
-  // Coerce default_value string to the target type (best-effort; backend re-validates)
-  function coerceDefault(raw: string, dataType: string): unknown {
-    if (raw === '') return null
-    if (dataType === 'integer') {
-      const n = parseInt(raw, 10)
-      return Number.isNaN(n) ? raw : n
-    }
-    if (dataType === 'float') {
-      const n = Number(raw)
-      return Number.isNaN(n) ? raw : n
-    }
-    if (dataType === 'boolean') return raw.toLowerCase() === 'true'
-    return raw
-  }
 
   const titleProp = objectType?.title_property
 
@@ -202,15 +186,14 @@ export default function ObjectExplorer() {
             <form
               onSubmit={(e) => {
                 e.preventDefault()
-                const payload = {
+                createProperty.mutate({
                   name: propForm.name,
                   api_name: propForm.api_name,
-                  data_type: propForm.data_type,
+                  data_type: 'string',
                   is_required: propForm.is_required,
-                  default_value: coerceDefault(propForm.default_value, propForm.data_type),
+                  default_value: propForm.default_value === '' ? null : propForm.default_value,
                   object_type_id: typeId,
-                }
-                createProperty.mutate(payload)
+                })
               }}
               className="mb-4 space-y-2 p-3 bg-gray-50 rounded-lg"
             >
@@ -221,15 +204,6 @@ export default function ObjectExplorer() {
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
                 required
               />
-              <select
-                value={propForm.data_type}
-                onChange={(e) => setPropForm({ ...propForm, data_type: e.target.value })}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded"
-              >
-                {['string', 'integer', 'float', 'boolean', 'date', 'timestamp'].map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
               <input
                 placeholder="Default value (optional)"
                 value={propForm.default_value}
@@ -256,7 +230,6 @@ export default function ObjectExplorer() {
               <div key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 text-sm">
                 <div>
                   <span className="font-medium">{p.name}</span>
-                  <span className="ml-2 text-xs text-gray-400 font-mono">{p.data_type}</span>
                   {p.default_value !== null && p.default_value !== undefined && (
                     <span className="ml-2 text-xs text-gray-400">= {String(p.default_value)}</span>
                   )}
@@ -292,9 +265,6 @@ export default function ObjectExplorer() {
                     <div className="min-w-0 flex-1">
                       <div>
                         <span className="font-medium">{d.api_name}</span>
-                        <span className="ml-2 text-xs text-gray-400 font-mono">
-                          {d.inferred_data_type}{d.is_array ? '[]' : ''}
-                        </span>
                         <span className="ml-2 text-xs text-gray-400">×{d.count}</span>
                       </div>
                       {d.sample !== null && d.sample !== undefined && (

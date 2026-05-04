@@ -5,7 +5,7 @@ import re
 
 from app.database import get_db
 from app.models.ontology import (
-    DataType, ObjectType, PropertyType, LinkType, ActionType, ObjectInstance, LinkInstance,
+    ObjectType, PropertyType, LinkType, ActionType, ObjectInstance, LinkInstance,
 )
 from app.schemas.ontology import (
     ObjectTypeCreate, ObjectTypeUpdate, ObjectTypeResponse,
@@ -16,7 +16,7 @@ from app.schemas.ontology import (
     LinkInstanceCreate, LinkInstanceResponse,
 )
 from app.services.property_validation import (
-    PropertyValidationError, infer_data_type, validate_and_coerce_properties,
+    PropertyValidationError, validate_and_coerce_properties,
 )
 from pydantic import BaseModel
 
@@ -113,7 +113,9 @@ async def create_property_type(
     data: PropertyTypeCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    prop = PropertyType(**data.model_dump())
+    payload = data.model_dump()
+    payload["data_type"] = "string"  # only string is currently supported
+    prop = PropertyType(**payload)
     db.add(prop)
     await db.flush()
     await db.refresh(prop)
@@ -170,13 +172,10 @@ async def _discover_undefined_keys(
     out = []
     for k, count in sorted(key_count.items()):
         sample = key_sample.get(k)
-        dtype, is_array = (
-            infer_data_type(sample) if sample is not None else (DataType.STRING, False)
-        )
         out.append(DiscoveredProperty(
             api_name=k,
-            inferred_data_type=dtype.value,
-            is_array=is_array,
+            inferred_data_type="string",
+            is_array=isinstance(sample, list),
             sample=sample,
             count=count,
         ))
