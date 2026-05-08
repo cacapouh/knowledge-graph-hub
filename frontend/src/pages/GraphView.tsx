@@ -775,6 +775,7 @@ export default function GraphView() {
             minZoom={0.1}
             maxZoom={2}
             nodesDraggable={!isPerf || nodes.length < 300}
+            deleteKeyCode={null}
           >
             <Controls position="bottom-left" />
             {!isPerf && (
