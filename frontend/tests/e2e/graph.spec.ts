@@ -12,9 +12,8 @@ test('graph view loads with node/edge counts and controls', async ({ page }) => 
   await expect(page.getByRole('button', { name: /^Perf( ON)?$/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Filter/ })).toBeVisible()
 
-  // Cypher query input
-  await expect(page.getByPlaceholder(/Cypher クエリ/)).toBeVisible()
-  await expect(page.getByRole('button', { name: /実行/ })).toBeVisible()
+  // Node search input
+  await expect(page.getByPlaceholder(/ノード名で検索/)).toBeVisible()
 })
 
 test('toggling Perf flips its label', async ({ page }) => {
@@ -62,16 +61,24 @@ test('node type filter via URL param filters the displayed count', async ({ page
   }
 })
 
-test('Cypher input accepts and clears text', async ({ page }) => {
+test('Node search shows matching candidates and jumps on Enter', async ({ page, request }) => {
+  const objs = await request.get('/api/ontology/objects?limit=500').then((r) => r.json())
+  const named = objs.find((o: any) => typeof o?.properties?.name === 'string' && o.properties.name.length >= 2)
+  if (!named) {
+    test.skip(true, 'no named object instance seeded')
+    return
+  }
+  const fragment: string = String(named.properties.name).slice(0, 2)
+
   await page.goto('/graph')
+  const input = page.getByPlaceholder(/ノード名で検索/)
+  await input.fill(fragment)
 
-  const input = page.getByPlaceholder(/Cypher クエリ/)
-  await input.fill('MATCH (n:Team) RETURN n')
-  await expect(input).toHaveValue('MATCH (n:Team) RETURN n')
+  // Dropdown candidate matching the typed fragment should appear.
+  const candidate = page.locator('li', { hasText: named.properties.name }).first()
+  await expect(candidate).toBeVisible()
 
-  // Clear button (X) appears inside the input wrapper.
-  await page.locator('button:has(svg.lucide-x)').first().click().catch(() => {})
-  // Some renders may not match; fall back to manual clear.
-  await input.fill('')
+  // Enter selects the highlighted (first) candidate; the input should clear.
+  await input.press('Enter')
   await expect(input).toHaveValue('')
 })

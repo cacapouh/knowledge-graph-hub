@@ -21,7 +21,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
 import type { ObjectType, ObjectInstance, LinkType, LinkInstance, PropertyType, Skill } from '../api/types'
-import { Plus, Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Play, RotateCcw, Share2, Copy, Check, Zap, Pencil, Save } from 'lucide-react'
+import { Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Pencil, Save, Search } from 'lucide-react'
 
 /* ─── Performance thresholds ─── */
 const PERF_NODE_THRESHOLD = 100
@@ -217,15 +217,10 @@ export default function GraphView() {
   const highlightApplied = useRef(false)
   const typeFilterInitialized = useRef(false)
 
-  // Cypher query state
-  const [cypherInput, setCypherInput] = useState('')
-  const [activeCypher, setActiveCypher] = useState<string | null>(null)
-  const [cypherError, setCypherError] = useState<string | null>(null)
-  const [cypherLoading, setCypherLoading] = useState(false)
-  const [cypherObjectIds, setCypherObjectIds] = useState<Set<number> | null>(null)
-  const [cypherLinkIds, setCypherLinkIds] = useState<Set<number> | null>(null)
-  const [copied, setCopied] = useState(false)
-  const cypherInitialized = useRef(false)
+  // Node search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchActiveIndex, setSearchActiveIndex] = useState(0)
 
   // Queries
   const { data: objectTypes = [] } = useQuery({
@@ -286,80 +281,6 @@ export default function GraphView() {
     },
   })
 
-  // ── Cypher query execution ──
-  const executeCypher = useCallback(async (query: string) => {
-    if (!query.trim()) return
-    setCypherLoading(true)
-    setCypherError(null)
-    try {
-      const result = await api.post<{
-        object_ids: number[]
-        link_ids: number[]
-        error: string | null
-      }>('/ontology/cypher', { query })
-      if (result.error) {
-        setCypherError(result.error)
-        setCypherObjectIds(null)
-        setCypherLinkIds(null)
-        setActiveCypher(null)
-      } else {
-        setCypherObjectIds(new Set(result.object_ids))
-        setCypherLinkIds(new Set(result.link_ids))
-        setActiveCypher(query)
-        setCypherError(null)
-        // Update URL
-        setSearchParams((prev) => {
-          const next = new URLSearchParams(prev)
-          next.set('cypher', query)
-          next.delete('highlight')
-          return next
-        }, { replace: true })
-      }
-    } catch (e: any) {
-      setCypherError(e.message || 'Query failed')
-      setCypherObjectIds(null)
-      setCypherLinkIds(null)
-      setActiveCypher(null)
-    } finally {
-      setCypherLoading(false)
-    }
-  }, [setSearchParams])
-
-  const clearCypher = useCallback(() => {
-    setCypherInput('')
-    setActiveCypher(null)
-    setCypherError(null)
-    setCypherObjectIds(null)
-    setCypherLinkIds(null)
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.delete('cypher')
-      return next
-    }, { replace: true })
-  }, [setSearchParams])
-
-  const copyShareLink = useCallback(() => {
-    const query = activeCypher || cypherInput
-    if (!query) return
-    const url = new URL(window.location.href)
-    url.searchParams.set('cypher', query)
-    url.searchParams.delete('highlight')
-    navigator.clipboard.writeText(url.toString())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [activeCypher, cypherInput])
-
-  // Initialize from URL cypher param on mount
-  useEffect(() => {
-    if (cypherInitialized.current) return
-    const cypherParam = searchParams.get('cypher')
-    if (cypherParam) {
-      cypherInitialized.current = true
-      setCypherInput(cypherParam)
-      executeCypher(cypherParam)
-    }
-  }, [searchParams, executeCypher])
-
   // Initialize hidden type filters from URL ?nodeTypes=&linkTypes= once data is loaded
   useEffect(() => {
     if (typeFilterInitialized.current) return
@@ -381,35 +302,92 @@ export default function GraphView() {
     typeFilterInitialized.current = true
   }, [searchParams, objectTypes, linkTypes])
 
-  // Filtered data (Cypher filter takes priority, then manual type filters)
+  // Filtered data (manual type filters)
   const filteredObjects = useMemo(
-    () => {
-      let objs = allObjects.filter((o) => !hiddenNodeTypes.has(o.object_type_id))
-      if (cypherObjectIds) {
-        objs = objs.filter((o) => cypherObjectIds.has(o.id))
-      }
-      return objs
-    },
-    [allObjects, hiddenNodeTypes, cypherObjectIds],
+    () => allObjects.filter((o) => !hiddenNodeTypes.has(o.object_type_id)),
+    [allObjects, hiddenNodeTypes],
   )
   const visibleObjectIds = useMemo(
     () => new Set(filteredObjects.map((o) => o.id)),
     [filteredObjects],
   )
   const filteredLinks = useMemo(
-    () => {
-      let lnks = allLinks.filter(
+    () =>
+      allLinks.filter(
         (l) =>
           !hiddenLinkTypes.has(l.link_type_id) &&
           visibleObjectIds.has(l.source_object_id) &&
           visibleObjectIds.has(l.target_object_id),
+      ),
+    [allLinks, hiddenLinkTypes, visibleObjectIds],
+  )
+
+  // ── Node search (name → jump) ──
+  const objectTypeById = useMemo(
+    () => new Map(objectTypes.map((t) => [t.id, t])),
+    [objectTypes],
+  )
+  const computeLabel = useCallback(
+    (inst: ObjectInstance): string => {
+      const type = objectTypeById.get(inst.object_type_id)
+      if (!type) return `#${inst.id}`
+      const titleProp = type.title_property
+      return (
+        (titleProp && inst.properties[titleProp]
+          ? String(inst.properties[titleProp])
+          : null) ||
+        (inst.properties['name'] ? String(inst.properties['name']) : null) ||
+        (inst.properties['hostname'] ? String(inst.properties['hostname']) : null) ||
+        `${type.name} #${inst.id}`
       )
-      if (cypherLinkIds) {
-        lnks = lnks.filter((l) => cypherLinkIds.has(l.id))
-      }
-      return lnks
     },
-    [allLinks, hiddenLinkTypes, visibleObjectIds, cypherLinkIds],
+    [objectTypeById],
+  )
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return []
+    const matches: { obj: ObjectInstance; label: string; typeName: string; color: string }[] = []
+    for (const o of allObjects) {
+      const type = objectTypeById.get(o.object_type_id)
+      const label = computeLabel(o)
+      if (label.toLowerCase().includes(q)) {
+        matches.push({
+          obj: o,
+          label,
+          typeName: type?.name || '',
+          color: type?.color || '#6b7280',
+        })
+        if (matches.length >= 10) break
+      }
+    }
+    return matches
+  }, [searchQuery, allObjects, objectTypeById, computeLabel])
+
+  const jumpToNode = useCallback(
+    (objectId: number) => {
+      // If the node is hidden by type filter, unhide its type
+      const obj = allObjects.find((o) => o.id === objectId)
+      if (obj && hiddenNodeTypes.has(obj.object_type_id)) {
+        setHiddenNodeTypes((prev) => {
+          const next = new Set(prev)
+          next.delete(obj.object_type_id)
+          return next
+        })
+      }
+      const targetNodeId = `obj-${objectId}`
+      // Defer to next tick so newly-laid-out nodes are available
+      setTimeout(() => {
+        const node = nodes.find((n) => n.id === targetNodeId)
+        if (node && rfInstance.current) {
+          setSelectedNode(node)
+          const { x, y } = node.position
+          rfInstance.current.setCenter(x + 130, y + 60, { zoom: 1.2, duration: 600 })
+        }
+      }, 50)
+      setSearchOpen(false)
+      setSearchQuery('')
+    },
+    [allObjects, hiddenNodeTypes, nodes],
   )
 
   // Auto-enable performance mode when data exceeds thresholds
@@ -615,74 +593,79 @@ export default function GraphView() {
         </div>
       </div>
 
-      {/* Cypher Query Bar */}
+      {/* Node search bar */}
       <div className="mx-2 mb-2">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={cypherInput}
-              onChange={(e) => setCypherInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && cypherInput.trim()) {
-                  executeCypher(cypherInput)
-                }
-              }}
-              placeholder="Cypher クエリ: MATCH (n:Team)-[:belongs_to]->(m:ServerGroup)"
-              className={`w-full pl-3 pr-10 py-2 text-sm font-mono border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 ${
-                cypherError ? 'border-red-300 bg-red-50' : activeCypher ? 'border-brand-400 bg-brand-50' : 'border-gray-200'
-              }`}
-            />
-            {cypherInput && (
-              <button
-                onClick={() => {
-                  setCypherInput('')
-                  if (activeCypher) clearCypher()
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => cypherInput.trim() && executeCypher(cypherInput)}
-            disabled={!cypherInput.trim() || cypherLoading}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Play className="w-4 h-4" />
-            {cypherLoading ? '実行中...' : '実行'}
-          </button>
-          {activeCypher && (
+        <div className="relative max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setSearchOpen(true)
+              setSearchActiveIndex(0)
+            }}
+            onFocus={() => searchQuery && setSearchOpen(true)}
+            onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSearchActiveIndex((i) => Math.min(i + 1, searchResults.length - 1))
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSearchActiveIndex((i) => Math.max(i - 1, 0))
+              } else if (e.key === 'Enter') {
+                const target = searchResults[searchActiveIndex]
+                if (target) jumpToNode(target.obj.id)
+              } else if (e.key === 'Escape') {
+                setSearchOpen(false)
+                setSearchQuery('')
+              }
+            }}
+            placeholder="ノード名で検索 (Enter で jump)"
+            className="w-full pl-9 pr-9 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 border-gray-200"
+          />
+          {searchQuery && (
             <button
-              onClick={clearCypher}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
-              title="クエリをリセット"
+              onClick={() => {
+                setSearchQuery('')
+                setSearchOpen(false)
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <RotateCcw className="w-4 h-4" />
-              リセット
+              <X className="w-4 h-4" />
             </button>
           )}
-          <button
-            onClick={copyShareLink}
-            disabled={!cypherInput.trim()}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="共有リンクをコピー"
-          >
-            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
-            {copied ? 'コピー済' : '共有'}
-          </button>
+          {searchOpen && searchResults.length > 0 && (
+            <ul className="absolute z-20 mt-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+              {searchResults.map((m, idx) => (
+                <li
+                  key={m.obj.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    jumpToNode(m.obj.id)
+                  }}
+                  onMouseEnter={() => setSearchActiveIndex(idx)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer ${
+                    idx === searchActiveIndex ? 'bg-brand-50' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <span
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: m.color }}
+                  />
+                  <span className="font-medium text-gray-900 truncate">{m.label}</span>
+                  <span className="text-xs text-gray-400 ml-auto shrink-0">{m.typeName}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {searchOpen && searchQuery.trim() && searchResults.length === 0 && (
+            <div className="absolute z-20 mt-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-500">
+              一致するノードが見つかりません
+            </div>
+          )}
         </div>
-        {cypherError && (
-          <div className="mt-1 text-xs text-red-600 font-medium">
-            ⚠ {cypherError}
-          </div>
-        )}
-        {activeCypher && !cypherError && (
-          <div className="mt-1 text-xs text-brand-600 font-medium">
-            ✓ クエリ適用中 — {filteredObjects.length} nodes, {filteredLinks.length} edges
-          </div>
-        )}
       </div>
 
       {/* Filter Panel */}
