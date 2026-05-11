@@ -22,6 +22,7 @@ import 'reactflow/dist/style.css'
 import { api } from '../api/client'
 import type { ObjectType, ObjectInstance, LinkType, LinkInstance, PropertyType } from '../api/types'
 import { Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Pencil, Save, Search } from 'lucide-react'
+import { renderPropValue } from '../components/PropValue'
 
 /* ─── Performance thresholds ─── */
 const PERF_NODE_THRESHOLD = 100
@@ -928,6 +929,8 @@ export default function GraphView() {
                       return rows
                     })().map(({ key: k, value: v, fromDefault }) => {
                       const isEmpty = v === null || v === undefined || v === ''
+                      const displayStr =
+                        typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')
                       return (
                         <div key={k} className="bg-gray-50 rounded-lg px-3 py-2">
                           <div className="text-xs font-medium text-gray-500 flex items-center gap-1">
@@ -940,7 +943,7 @@ export default function GraphView() {
                             {isEmpty ? (
                               <span className="text-gray-400">—</span>
                             ) : (
-                              typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)
+                              renderPropValue(displayStr)
                             )}
                           </div>
                         </div>
