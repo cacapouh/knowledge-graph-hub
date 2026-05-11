@@ -17,7 +17,6 @@ class DataType(str, enum.Enum):
     OBJECT = "object"
     GEOSHAPE = "geoshape"
     GEOPOINT = "geopoint"
-    SKILL = "skill"  # value is a Skill.id (int)
 
 
 class Cardinality(str, enum.Enum):

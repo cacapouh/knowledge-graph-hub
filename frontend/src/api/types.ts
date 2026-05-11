@@ -133,27 +133,6 @@ export interface GraphPullRequest {
   updated_at: string
 }
 
-// --- Skills ---
-export interface MCPConfig {
-  name: string
-  type: 'stdio' | 'http' | 'sse'
-  command?: string | null
-  args: string[]
-  env: Record<string, string>
-  url?: string | null
-  headers: Record<string, string>
-}
-
-export interface Skill {
-  id: number
-  name: string
-  description: string
-  prompt: string
-  mcps: MCPConfig[]
-  created_at: string
-  updated_at: string
-}
-
 // --- Saved Views ---
 export interface SavedView {
   id: number

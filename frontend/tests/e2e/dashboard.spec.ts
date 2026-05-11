@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const NAV_LABELS = ['Dashboard', 'Ontology', 'Graph', 'Views', 'Skills', 'Pull Requests']
+const NAV_LABELS = ['Dashboard', 'Ontology', 'Graph', 'Views', 'Pull Requests']
 
 test('dashboard renders with sidebar navigation', async ({ page }) => {
   await page.goto('/')
@@ -46,10 +46,6 @@ test('clicking an object type in the list navigates to its explorer', async ({ p
 
 test('sidebar navigates between top-level pages', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('link', { name: 'Skills' }).click()
-  await expect(page).toHaveURL(/\/skills$/)
-  await expect(page.getByRole('heading', { name: 'Skills' })).toBeVisible()
-
   await page.getByRole('link', { name: 'Views' }).click()
   await expect(page).toHaveURL(/\/views$/)
   await expect(page.getByRole('heading', { name: 'Saved Views' })).toBeVisible()

@@ -7,7 +7,6 @@ import {
   Network,
   Bookmark,
   GitPullRequest,
-  Sparkles,
 } from 'lucide-react'
 
 const navItems = [
@@ -15,7 +14,6 @@ const navItems = [
   { to: '/ontology', icon: Share2, label: 'Ontology' },
   { to: '/graph', icon: Network, label: 'Graph' },
   { to: '/views', icon: Bookmark, label: 'Views' },
-  { to: '/skills', icon: Sparkles, label: 'Skills' },
   { to: '/gpr', icon: GitPullRequest, label: 'Pull Requests' },
 ]
 

@@ -11,7 +11,6 @@ export default async function globalSetup() {
 
   const endpoints: Array<{ list: string; del: (id: number) => string; nameField: string }> = [
     { list: '/api/views', del: (id) => `/api/views/${id}`, nameField: 'name' },
-    { list: '/api/skills', del: (id) => `/api/skills/${id}`, nameField: 'name' },
     { list: '/api/ontology/object-types', del: (id) => `/api/ontology/object-types/${id}`, nameField: 'name' },
   ]
 

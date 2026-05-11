@@ -72,14 +72,6 @@ export type LinkType = {
   cardinality: string
 }
 
-export type Skill = {
-  id: number
-  name: string
-  description: string
-  prompt: string
-  mcps: Array<Record<string, unknown>>
-}
-
 export type SavedView = {
   id: number
   name: string
@@ -123,15 +115,6 @@ export async function deleteObjectType(request: APIRequestContext, id: number): 
 export async function listObjectTypes(request: APIRequestContext): Promise<ObjectType[]> {
   const res = await request.get('/api/ontology/object-types')
   return (await res.json()) as ObjectType[]
-}
-
-export async function listSkills(request: APIRequestContext): Promise<Skill[]> {
-  const res = await request.get('/api/skills')
-  return (await res.json()) as Skill[]
-}
-
-export async function deleteSkill(request: APIRequestContext, id: number): Promise<void> {
-  await request.delete(`/api/skills/${id}`)
 }
 
 export async function listSavedViews(request: APIRequestContext): Promise<SavedView[]> {

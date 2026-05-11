@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.api import ontology, skills, views, gpr
+from app.api import ontology, views, gpr
 
 # Import all models so they are registered with Base
 import app.models  # noqa: F401
@@ -23,9 +23,11 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE property_types ADD COLUMN IF NOT EXISTS default_value JSONB"
         ))
-        # Add new DataType enum values (idempotent on PG 12+).
-        # Note: SQLAlchemy stores Python Enum.name (uppercase) as the DB label.
-        await conn.execute(text("ALTER TYPE datatype ADD VALUE IF NOT EXISTS 'SKILL'"))
+        # Downgrade any legacy SKILL-typed properties left over from the removed
+        # Skills feature, so the Python enum stays consistent with stored rows.
+        await conn.execute(text(
+            "UPDATE property_types SET data_type = 'STRING' WHERE data_type = 'SKILL'"
+        ))
     yield
     await engine.dispose()
 
@@ -47,7 +49,6 @@ app.add_middleware(
 
 # Register routers
 app.include_router(ontology.router)
-app.include_router(skills.router)
 app.include_router(views.router)
 app.include_router(gpr.router)
 

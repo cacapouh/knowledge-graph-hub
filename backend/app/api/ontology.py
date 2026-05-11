@@ -108,7 +108,7 @@ async def list_property_types(
     return result.scalars().all()
 
 
-_ALLOWED_PROPERTY_DATA_TYPES = {"string", "skill"}
+_ALLOWED_PROPERTY_DATA_TYPES = {"string"}
 
 
 @router.post("/properties", response_model=PropertyTypeResponse, status_code=status.HTTP_201_CREATED)
