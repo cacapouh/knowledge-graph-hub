@@ -21,7 +21,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
 import type { ObjectType, ObjectInstance, LinkType, LinkInstance, PropertyType } from '../api/types'
-import { Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Pencil, Save, Search } from 'lucide-react'
+import { Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Pencil, Save, Search, Target, Minus, Plus } from 'lucide-react'
 import { renderPropValue } from '../components/PropValue'
 
 /* ─── Performance thresholds ─── */
@@ -298,14 +298,55 @@ export default function GraphView() {
     typeFilterInitialized.current = true
   }, [searchParams, objectTypes, linkTypes])
 
-  // Filtered data (manual type filters)
+  // Neighborhood focus (?nearBy=<id>&distance=N): BFS over allLinks, type filters
+  // are applied on top so a single source of "visible nodes" is still consistent.
+  const nearByParam = searchParams.get('nearBy')
+  const distanceParam = searchParams.get('distance')
+  const nearByObjectId = nearByParam !== null && nearByParam !== '' && !Number.isNaN(Number(nearByParam))
+    ? Number(nearByParam)
+    : null
+  const focusDistance = (() => {
+    const n = Number(distanceParam)
+    if (Number.isNaN(n) || n < 1) return 1
+    return Math.min(10, Math.floor(n))
+  })()
+  const isFocusMode = nearByObjectId !== null
+  const focusNeighborIds = useMemo(() => {
+    if (!isFocusMode || nearByObjectId === null) return null
+    const allowed = new Set<number>([nearByObjectId])
+    let frontier = new Set<number>([nearByObjectId])
+    for (let d = 0; d < focusDistance && frontier.size > 0; d++) {
+      const next = new Set<number>()
+      for (const link of allLinks) {
+        if (frontier.has(link.source_object_id) && !allowed.has(link.target_object_id)) {
+          next.add(link.target_object_id)
+        }
+        if (frontier.has(link.target_object_id) && !allowed.has(link.source_object_id)) {
+          next.add(link.source_object_id)
+        }
+      }
+      for (const id of next) allowed.add(id)
+      frontier = next
+    }
+    return allowed
+  }, [isFocusMode, nearByObjectId, focusDistance, allLinks])
+
+  // Filtered data (manual type filters + neighborhood focus)
   const filteredObjects = useMemo(
-    () => allObjects.filter((o) => !hiddenNodeTypes.has(o.object_type_id)),
-    [allObjects, hiddenNodeTypes],
+    () => allObjects.filter((o) =>
+      !hiddenNodeTypes.has(o.object_type_id) &&
+      (focusNeighborIds === null || focusNeighborIds.has(o.id)),
+    ),
+    [allObjects, hiddenNodeTypes, focusNeighborIds],
   )
   const visibleObjectIds = useMemo(
     () => new Set(filteredObjects.map((o) => o.id)),
     [filteredObjects],
+  )
+
+  const focusCenterObject = useMemo(
+    () => (nearByObjectId === null ? null : allObjects.find((o) => o.id === nearByObjectId) ?? null),
+    [nearByObjectId, allObjects],
   )
   const filteredLinks = useMemo(
     () =>
@@ -404,6 +445,14 @@ export default function GraphView() {
     }
   }, [filteredObjects, objectTypes, setNodes, isPerf])
 
+  // Re-fit the camera when focus changes (nearBy or distance) so the user
+  // immediately sees the new neighborhood instead of staring at empty space.
+  useEffect(() => {
+    if (!rfInstance.current || nodes.length === 0) return
+    const t = setTimeout(() => rfInstance.current?.fitView({ padding: 0.3, duration: 400 }), 80)
+    return () => clearTimeout(t)
+  }, [nearByObjectId, focusDistance, nodes.length])
+
   // Auto-highlight from URL query param (?highlight=objectId)
   useEffect(() => {
     const highlightId = searchParams.get('highlight')
@@ -488,6 +537,34 @@ export default function GraphView() {
       return next
     })
   }, [])
+
+  // Focus neighborhood helpers (write nearBy/distance to URL)
+  const enterFocus = useCallback((objectId: number, distance: number = 1) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('nearBy', String(objectId))
+      next.set('distance', String(Math.max(1, Math.min(10, distance))))
+      return next
+    })
+  }, [setSearchParams])
+
+  const setFocusDistance = useCallback((distance: number) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (!next.has('nearBy')) return prev
+      next.set('distance', String(Math.max(1, Math.min(10, distance))))
+      return next
+    })
+  }, [setSearchParams])
+
+  const clearFocus = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('nearBy')
+      next.delete('distance')
+      return next
+    })
+  }, [setSearchParams])
 
   // Handlers
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -663,6 +740,47 @@ export default function GraphView() {
         </div>
       </div>
 
+      {/* Neighborhood Focus Banner */}
+      {isFocusMode && (
+        <div className="mx-2 mb-2 px-3 py-2 bg-brand-50 border border-brand-200 rounded-xl flex items-center gap-3 text-sm">
+          <Target className="w-4 h-4 text-brand-600 shrink-0" />
+          <span className="text-brand-900 truncate">
+            <span className="font-semibold">近傍フォーカス:</span>{' '}
+            {focusCenterObject
+              ? computeLabel(focusCenterObject)
+              : <span className="text-brand-500">#{nearByObjectId} (not found)</span>}
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-xs text-brand-700">距離</span>
+            <button
+              onClick={() => setFocusDistance(focusDistance - 1)}
+              disabled={focusDistance <= 1}
+              className="p-1 rounded hover:bg-brand-100 text-brand-700 disabled:opacity-30 disabled:hover:bg-transparent"
+              title="距離を1減らす"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <span className="w-6 text-center font-semibold text-brand-900">{focusDistance}</span>
+            <button
+              onClick={() => setFocusDistance(focusDistance + 1)}
+              disabled={focusDistance >= 10}
+              className="p-1 rounded hover:bg-brand-100 text-brand-700 disabled:opacity-30 disabled:hover:bg-transparent"
+              title="距離を1増やす"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={clearFocus}
+              className="ml-2 flex items-center gap-1 px-2 py-1 text-xs font-medium text-brand-700 bg-white border border-brand-200 rounded hover:bg-brand-100"
+              title="フォーカスを解除"
+            >
+              <X className="w-3 h-3" />
+              全表示
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filter Panel */}
       {showFilters && (
         <div className="mx-2 mb-2 p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-wrap gap-6 text-sm">
@@ -803,7 +921,7 @@ export default function GraphView() {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 gap-2">
                   <span
                     className="inline-block px-2 py-0.5 text-xs font-medium text-white rounded-full"
                     style={{ backgroundColor: selectedNodeData.color }}
@@ -811,32 +929,42 @@ export default function GraphView() {
                     {selectedNodeData.typeName}
                   </span>
                   {!editingProps && (
-                    <button
-                      onClick={() => {
-                        const init: Record<string, string> = {}
-                        const props = selectedNodeData.properties || {}
-                        // Seed schema-defined keys (with default_value when instance has no value)
-                        for (const p of selectedNodeProps) {
-                          const has = p.api_name in props && props[p.api_name] !== null && props[p.api_name] !== ''
-                          const v = has ? props[p.api_name] : p.default_value
-                          if (v === null || v === undefined) {
-                            init[p.api_name] = ''
-                          } else {
-                            init[p.api_name] = typeof v === 'object' ? JSON.stringify(v) : String(v)
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => enterFocus(selectedNodeData.objectId, 1)}
+                        title="このノードを起点に距離1の近傍だけ表示"
+                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 px-2 py-1 rounded hover:bg-brand-50"
+                      >
+                        <Target className="w-3 h-3" />
+                        近傍
+                      </button>
+                      <button
+                        onClick={() => {
+                          const init: Record<string, string> = {}
+                          const props = selectedNodeData.properties || {}
+                          // Seed schema-defined keys (with default_value when instance has no value)
+                          for (const p of selectedNodeProps) {
+                            const has = p.api_name in props && props[p.api_name] !== null && props[p.api_name] !== ''
+                            const v = has ? props[p.api_name] : p.default_value
+                            if (v === null || v === undefined) {
+                              init[p.api_name] = ''
+                            } else {
+                              init[p.api_name] = typeof v === 'object' ? JSON.stringify(v) : String(v)
+                            }
                           }
-                        }
-                        // Plus any keys present on the instance but not in the schema
-                        for (const [k, v] of Object.entries(props)) {
-                          if (k in init) continue
-                          init[k] = typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')
-                        }
-                        setEditingProps(init)
-                      }}
-                      className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 px-2 py-1 rounded hover:bg-brand-50"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      Edit
-                    </button>
+                          // Plus any keys present on the instance but not in the schema
+                          for (const [k, v] of Object.entries(props)) {
+                            if (k in init) continue
+                            init[k] = typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')
+                          }
+                          setEditingProps(init)
+                        }}
+                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 px-2 py-1 rounded hover:bg-brand-50"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Edit
+                      </button>
+                    </div>
                   )}
                 </div>
 
