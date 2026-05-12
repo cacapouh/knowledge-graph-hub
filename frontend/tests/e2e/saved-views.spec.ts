@@ -33,6 +33,8 @@ test('creates a saved view with selected node types and verifies graph link', as
     })
 
     await createBlock.getByPlaceholder(/ビュー名/).fill(name)
+    // Add a type_filter condition card, then pick the target node type inside it.
+    await createBlock.getByRole('button', { name: /種別で絞り込み/ }).click()
     await createBlock.getByRole('button', { name: target.name }).first().click()
     await createBlock.getByRole('button', { name: '作成' }).click()
 
@@ -40,7 +42,9 @@ test('creates a saved view with selected node types and verifies graph link', as
     await expect(card).toBeVisible()
 
     const graphLink = card.getByRole('link', { name: /Graph で開く/ })
-    await expect(graphLink).toHaveAttribute('href', new RegExp(`nodeTypes=${target.id}`))
+    // The graph URL now opens the view by id so all conditions (incl.
+    // neighborhoods) can be applied uniformly.
+    await expect(graphLink).toHaveAttribute('href', /viewId=\d+/)
 
     const views = await listSavedViews(request)
     const created = views.find((v) => v.name === name)

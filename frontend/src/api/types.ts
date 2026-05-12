@@ -134,11 +134,37 @@ export interface GraphPullRequest {
 }
 
 // --- Saved Views ---
+export interface TypeFilterCondition {
+  kind: 'type_filter'
+  object_type_ids: number[]
+  link_type_ids: number[]
+}
+
+export interface NeighborhoodOfTypeCondition {
+  kind: 'neighborhood_of_type'
+  object_type_id: number
+  distance: number
+}
+
+export interface NeighborhoodOfIdsCondition {
+  kind: 'neighborhood_of_ids'
+  object_ids: number[]
+  distance: number
+}
+
+export type ViewCondition =
+  | TypeFilterCondition
+  | NeighborhoodOfTypeCondition
+  | NeighborhoodOfIdsCondition
+
 export interface SavedView {
   id: number
   name: string
   description: string
+  conditions: ViewCondition[]
+  /** @deprecated mirrored from the first type_filter condition for back compat */
   object_type_ids: number[]
+  /** @deprecated mirrored from the first type_filter condition for back compat */
   link_type_ids: number[]
   created_at: string
   updated_at: string

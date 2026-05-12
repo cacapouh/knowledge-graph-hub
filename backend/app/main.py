@@ -28,6 +28,30 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "UPDATE property_types SET data_type = 'STRING' WHERE data_type = 'SKILL'"
         ))
+        # SavedView.conditions: new JSONB column for multi-condition views.
+        await conn.execute(text(
+            "ALTER TABLE saved_views ADD COLUMN IF NOT EXISTS conditions JSONB NOT NULL DEFAULT '[]'::jsonb"
+        ))
+        # Backfill: rows that still have legacy object_type_ids/link_type_ids
+        # (which are JSON-typed) but an empty conditions[] get a single
+        # type_filter condition synthesized. Cast to jsonb for comparisons.
+        await conn.execute(text(
+            """
+            UPDATE saved_views
+            SET conditions = jsonb_build_array(
+                jsonb_build_object(
+                    'kind', 'type_filter',
+                    'object_type_ids', COALESCE(object_type_ids::jsonb, '[]'::jsonb),
+                    'link_type_ids',   COALESCE(link_type_ids::jsonb,   '[]'::jsonb)
+                )
+            )
+            WHERE (conditions IS NULL OR conditions = '[]'::jsonb)
+              AND (
+                (object_type_ids IS NOT NULL AND object_type_ids::jsonb <> '[]'::jsonb)
+                OR (link_type_ids IS NOT NULL AND link_type_ids::jsonb <> '[]'::jsonb)
+              )
+            """
+        ))
     yield
     await engine.dispose()
 

@@ -20,9 +20,10 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { api } from '../api/client'
-import type { ObjectType, ObjectInstance, LinkType, LinkInstance, PropertyType } from '../api/types'
+import type { ObjectType, ObjectInstance, LinkType, LinkInstance, PropertyType, SavedView } from '../api/types'
 import { Trash2, X, Link as LinkIcon, Filter, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Pencil, Save, Search, Target, Minus, Plus } from 'lucide-react'
 import { renderPropValue } from '../components/PropValue'
+import { computeViewSelection } from '../lib/viewConditions'
 
 /* ─── Performance thresholds ─── */
 const PERF_NODE_THRESHOLD = 100
@@ -241,6 +242,23 @@ export default function GraphView() {
     queryFn: () => api.get<LinkInstance[]>('/ontology/links?limit=1000'),
   })
 
+  // Saved view scope (?viewId=N) — narrows nodes/links to the OR-union of the
+  // view's conditions before any other filter is applied.
+  const viewIdParam = searchParams.get('viewId')
+  const viewId =
+    viewIdParam !== null && viewIdParam !== '' && !Number.isNaN(Number(viewIdParam))
+      ? Number(viewIdParam)
+      : null
+  const { data: savedView } = useQuery({
+    queryKey: ['savedView', viewId],
+    queryFn: () => api.get<SavedView>(`/views/${viewId}`),
+    enabled: viewId !== null,
+  })
+  const viewSelection = useMemo(
+    () => computeViewSelection(savedView?.conditions, allObjects, allLinks),
+    [savedView, allObjects, allLinks],
+  )
+
   // Mutations
   const createLink = useMutation({
     mutationFn: (data: { link_type_id: number; source_object_id: number; target_object_id: number }) =>
@@ -331,13 +349,14 @@ export default function GraphView() {
     return allowed
   }, [isFocusMode, nearByObjectId, focusDistance, allLinks])
 
-  // Filtered data (manual type filters + neighborhood focus)
+  // Filtered data (saved view scope + manual type filters + neighborhood focus)
   const filteredObjects = useMemo(
     () => allObjects.filter((o) =>
+      (viewSelection === null || viewSelection.nodes.has(o.id)) &&
       !hiddenNodeTypes.has(o.object_type_id) &&
       (focusNeighborIds === null || focusNeighborIds.has(o.id)),
     ),
-    [allObjects, hiddenNodeTypes, focusNeighborIds],
+    [allObjects, viewSelection, hiddenNodeTypes, focusNeighborIds],
   )
   const visibleObjectIds = useMemo(
     () => new Set(filteredObjects.map((o) => o.id)),
@@ -352,11 +371,12 @@ export default function GraphView() {
     () =>
       allLinks.filter(
         (l) =>
+          (viewSelection === null || viewSelection.links.has(l.id)) &&
           !hiddenLinkTypes.has(l.link_type_id) &&
           visibleObjectIds.has(l.source_object_id) &&
           visibleObjectIds.has(l.target_object_id),
       ),
-    [allLinks, hiddenLinkTypes, visibleObjectIds],
+    [allLinks, viewSelection, hiddenLinkTypes, visibleObjectIds],
   )
 
   // ── Node search (name → jump) ──
@@ -739,6 +759,31 @@ export default function GraphView() {
           )}
         </div>
       </div>
+
+      {/* Saved View Banner */}
+      {savedView && (
+        <div className="mx-2 mb-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-xl flex items-center gap-3 text-sm">
+          <Filter className="w-4 h-4 text-purple-600 shrink-0" />
+          <span className="text-purple-900 truncate">
+            <span className="font-semibold">ビュー:</span> {savedView.name}
+            <span className="ml-2 text-purple-600 text-xs">
+              ({savedView.conditions?.length ?? 0} 条件)
+            </span>
+          </span>
+          <button
+            onClick={() => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('viewId')
+              setSearchParams(next, { replace: true })
+            }}
+            className="ml-auto flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-700 bg-white border border-purple-200 rounded hover:bg-purple-100"
+            title="ビュー条件を解除"
+          >
+            <X className="w-3 h-3" />
+            全表示
+          </button>
+        </div>
+      )}
 
       {/* Neighborhood Focus Banner */}
       {isFocusMode && (
