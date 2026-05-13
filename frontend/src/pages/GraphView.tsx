@@ -439,11 +439,14 @@ export default function GraphView() {
     },
     [objectTypeById],
   )
+  // Only search nodes currently rendered on screen — when a saved view, type
+  // filter, or neighborhood focus narrows the graph, hidden nodes should not
+  // pollute the search suggestions.
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
     const matches: { obj: ObjectInstance; label: string; typeName: string; color: string }[] = []
-    for (const o of allObjects) {
+    for (const o of filteredObjects) {
       const type = objectTypeById.get(o.object_type_id)
       const label = computeLabel(o)
       if (label.toLowerCase().includes(q)) {
@@ -457,7 +460,7 @@ export default function GraphView() {
       }
     }
     return matches
-  }, [searchQuery, allObjects, objectTypeById, computeLabel])
+  }, [searchQuery, filteredObjects, objectTypeById, computeLabel])
 
   const jumpToNode = useCallback(
     (objectId: number) => {
