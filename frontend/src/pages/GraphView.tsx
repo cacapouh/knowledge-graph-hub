@@ -209,12 +209,22 @@ export default function GraphView() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showLinkForm, setShowLinkForm] = useState(false)
   const [linkForm, setLinkForm] = useState({ linkTypeId: '' as number | '' })
+  // Drag-to-empty-pane create-node-and-link modal state
+  const [showCreateNodeModal, setShowCreateNodeModal] = useState(false)
+  const [createNodeForm, setCreateNodeForm] = useState<{
+    sourceObjectId: number | null
+    objectTypeId: number | ''
+    linkTypeId: number | ''
+    title: string
+  }>({ sourceObjectId: null, objectTypeId: '', linkTypeId: '', title: '' })
+  const connectStartSourceRef = useRef<number | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [hiddenNodeTypes, setHiddenNodeTypes] = useState<Set<number>>(new Set())
   const [hiddenLinkTypes, setHiddenLinkTypes] = useState<Set<number>>(new Set())
   const [perfMode, setPerfMode] = useState(false)
   const [editingProps, setEditingProps] = useState<Record<string, string> | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDeleteEdge, setConfirmDeleteEdge] = useState(false)
   const rfInstance = useRef<ReactFlowInstance | null>(null)
   const highlightApplied = useRef(false)
   const typeFilterInitialized = useRef(false)
@@ -292,6 +302,35 @@ export default function GraphView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['allObjects'] })
       setEditingProps(null)
+    },
+  })
+
+  // Create a new node and (optionally) connect it from the drag source in one shot.
+  const createNodeAndLink = useMutation({
+    mutationFn: async (params: {
+      sourceObjectId: number
+      objectTypeId: number
+      linkTypeId: number | null
+      properties: Record<string, unknown>
+    }) => {
+      const newObj = await api.post<ObjectInstance>('/ontology/objects', {
+        object_type_id: params.objectTypeId,
+        properties: params.properties,
+      })
+      if (params.linkTypeId) {
+        await api.post('/ontology/links', {
+          link_type_id: params.linkTypeId,
+          source_object_id: params.sourceObjectId,
+          target_object_id: newObj.id,
+        })
+      }
+      return newObj
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allObjects'] })
+      queryClient.invalidateQueries({ queryKey: ['allLinks'] })
+      setShowCreateNodeModal(false)
+      setCreateNodeForm({ sourceObjectId: null, objectTypeId: '', linkTypeId: '', title: '' })
     },
   })
 
@@ -611,9 +650,41 @@ export default function GraphView() {
       setShowLinkForm(true)
       // Store for form submission
       ;(window as any).__pendingLink = { sourceId, targetId }
+      // A successful connect handled the drag — don't trigger create-node modal in onConnectEnd
+      connectStartSourceRef.current = null
     },
     [linkTypes],
   )
+
+  // Track which node started the connection (used by onConnectEnd to detect pane drops)
+  const onConnectStart = useCallback(
+    (_: unknown, params: { nodeId: string | null }) => {
+      if (params.nodeId) {
+        connectStartSourceRef.current = parseInt(params.nodeId.replace('obj-', ''))
+      } else {
+        connectStartSourceRef.current = null
+      }
+    },
+    [],
+  )
+
+  // If the drag ends on the empty pane (no target node), open the create-node modal
+  // with the existing source pre-filled so the user can build a new node + link in one step.
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+    const sourceId = connectStartSourceRef.current
+    connectStartSourceRef.current = null
+    if (sourceId == null) return
+    const target = event.target as HTMLElement | null
+    const isPane = !!target && target.classList?.contains('react-flow__pane')
+    if (!isPane) return
+    setCreateNodeForm({
+      sourceObjectId: sourceId,
+      objectTypeId: '',
+      linkTypeId: '',
+      title: '',
+    })
+    setShowCreateNodeModal(true)
+  }, [])
 
   const handleCreateLink = () => {
     const pending = (window as any).__pendingLink
@@ -641,6 +712,10 @@ export default function GraphView() {
     setEditingProps(null)
     setConfirmDelete(false)
   }, [selectedNode?.id])
+  // Reset edge-delete confirm when switching edges
+  useEffect(() => {
+    setConfirmDeleteEdge(false)
+  }, [selectedEdge?.id])
   const selectedLinkType = selectedEdge
     ? linkTypes.find((lt) => lt.id === selectedEdge.data?.linkTypeId)
     : null
@@ -921,6 +996,8 @@ export default function GraphView() {
             onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
             onInit={(instance) => { rfInstance.current = instance }}
             nodeTypes={nodeTypes}
             fitView
@@ -1221,13 +1298,38 @@ export default function GraphView() {
                     </div>
                   </div>
                 )}
-                <button
-                  onClick={() => selectedEdge.data?.linkId && deleteLink.mutate(selectedEdge.data.linkId)}
-                  className="mt-4 flex items-center gap-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 w-full justify-center"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Link
-                </button>
+                {confirmDeleteEdge ? (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-900 mb-3">
+                      本当にこのリンクを削除しますか？
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={deleteLink.isPending}
+                        onClick={() => selectedEdge.data?.linkId && deleteLink.mutate(selectedEdge.data.linkId)}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {deleteLink.isPending ? 'Deleting...' : 'Confirm Delete'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteEdge(false)}
+                        disabled={deleteLink.isPending}
+                        className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteEdge(true)}
+                    className="mt-4 flex items-center gap-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 w-full justify-center"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Link
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1275,6 +1377,143 @@ export default function GraphView() {
           </div>
         </div>
       )}
+
+      {/* Create node + link modal (triggered by dragging from a handle to the empty pane) */}
+      {showCreateNodeModal && (() => {
+        const sourceObj =
+          createNodeForm.sourceObjectId != null
+            ? allObjects.find((o) => o.id === createNodeForm.sourceObjectId)
+            : null
+        const sourceType = sourceObj
+          ? objectTypes.find((t) => t.id === sourceObj.object_type_id)
+          : null
+        const newType =
+          createNodeForm.objectTypeId !== ''
+            ? objectTypes.find((t) => t.id === createNodeForm.objectTypeId)
+            : null
+        const titleProp = newType?.title_property
+        // Filter link types: source must match the dragged-from node's type, and
+        // (if new type chosen) target must match. If new type not yet chosen, only
+        // restrict by source.
+        const compatibleLinkTypes = linkTypes.filter((lt) => {
+          if (sourceType && lt.source_object_type_id !== sourceType.id) return false
+          if (newType && lt.target_object_type_id !== newType.id) return false
+          return true
+        })
+        const submitDisabled =
+          createNodeForm.objectTypeId === '' || createNodeAndLink.isPending
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-[28rem] shadow-2xl">
+              <h3 className="font-bold text-lg mb-1">Create Node + Link</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Drag from <span className="font-medium">{sourceType?.name ?? '?'}</span> #{sourceObj?.id ?? '?'} —
+                pick the new node's type, then (optionally) the link type.
+              </p>
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Object Type</label>
+                <select
+                  value={createNodeForm.objectTypeId}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setCreateNodeForm((prev) => ({
+                      ...prev,
+                      objectTypeId: v === '' ? '' : Number(v),
+                      // Reset link type when object type changes (compatibility shifts)
+                      linkTypeId: '',
+                    }))
+                  }}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Select...</option>
+                  {objectTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {titleProp && (
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {titleProp}
+                    <span className="ml-1 text-xs text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={createNodeForm.title}
+                    onChange={(e) =>
+                      setCreateNodeForm((prev) => ({ ...prev, title: e.target.value }))
+                    }
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                    placeholder={`Initial value for ${titleProp}`}
+                  />
+                </div>
+              )}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Link Type
+                  <span className="ml-1 text-xs text-gray-400">(optional — leave empty to skip the link)</span>
+                </label>
+                <select
+                  value={createNodeForm.linkTypeId}
+                  onChange={(e) =>
+                    setCreateNodeForm((prev) => ({
+                      ...prev,
+                      linkTypeId: e.target.value === '' ? '' : Number(e.target.value),
+                    }))
+                  }
+                  className="w-full border rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
+                  disabled={compatibleLinkTypes.length === 0}
+                >
+                  <option value="">— No link —</option>
+                  {compatibleLinkTypes.map((lt) => (
+                    <option key={lt.id} value={lt.id}>
+                      {lt.name} ({lt.cardinality})
+                    </option>
+                  ))}
+                </select>
+                {newType && compatibleLinkTypes.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    No link type defined for {sourceType?.name} → {newType.name}. The node will be created without a link.
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowCreateNodeModal(false)
+                    setCreateNodeForm({ sourceObjectId: null, objectTypeId: '', linkTypeId: '', title: '' })
+                  }}
+                  disabled={createNodeAndLink.isPending}
+                  className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (createNodeForm.sourceObjectId == null || createNodeForm.objectTypeId === '') return
+                    const properties: Record<string, unknown> = {}
+                    if (titleProp && createNodeForm.title.trim() !== '') {
+                      properties[titleProp] = createNodeForm.title.trim()
+                    }
+                    createNodeAndLink.mutate({
+                      sourceObjectId: createNodeForm.sourceObjectId,
+                      objectTypeId: Number(createNodeForm.objectTypeId),
+                      linkTypeId: createNodeForm.linkTypeId === '' ? null : Number(createNodeForm.linkTypeId),
+                      properties,
+                    })
+                  }}
+                  disabled={submitDisabled}
+                  className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {createNodeAndLink.isPending ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
