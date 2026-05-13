@@ -231,7 +231,7 @@ export default function GraphView() {
   })
   const { data: allObjects = [] } = useQuery({
     queryKey: ['allObjects'],
-    queryFn: () => api.get<ObjectInstance[]>('/ontology/objects?limit=500'),
+    queryFn: () => api.get<ObjectInstance[]>('/ontology/objects'),
   })
   const { data: linkTypes = [] } = useQuery({
     queryKey: ['linkTypes'],
@@ -239,7 +239,7 @@ export default function GraphView() {
   })
   const { data: allLinks = [] } = useQuery({
     queryKey: ['allLinks'],
-    queryFn: () => api.get<LinkInstance[]>('/ontology/links?limit=1000'),
+    queryFn: () => api.get<LinkInstance[]>('/ontology/links'),
   })
 
   // Saved view scope (?viewId=N) — narrows nodes/links to the OR-union of the
