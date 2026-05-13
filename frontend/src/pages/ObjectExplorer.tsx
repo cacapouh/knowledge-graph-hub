@@ -310,7 +310,15 @@ export default function ObjectExplorer() {
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm text-gray-500">ID: {selectedObject.id}</span>
                 <button
-                  onClick={() => deleteObject.mutate(selectedObject.id)}
+                  onClick={() => {
+                    const label =
+                      (objectType?.title_property &&
+                        selectedObject.properties[objectType.title_property]) ||
+                      `#${selectedObject.id}`
+                    if (window.confirm(`Object 「${label}」 を削除しますか？`)) {
+                      deleteObject.mutate(selectedObject.id)
+                    }
+                  }}
                   className="p-1.5 text-gray-400 hover:text-red-500"
                 >
                   <Trash2 className="w-4 h-4" />

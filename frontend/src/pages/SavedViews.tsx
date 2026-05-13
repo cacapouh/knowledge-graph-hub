@@ -70,7 +70,7 @@ export default function SavedViews() {
 
   const { data: allObjects = [] } = useQuery({
     queryKey: ['allObjects'],
-    queryFn: () => api.get<ObjectInstance[]>('/ontology/objects?limit=500'),
+    queryFn: () => api.get<ObjectInstance[]>('/ontology/objects'),
   })
 
   const objectTypeById = useMemo(

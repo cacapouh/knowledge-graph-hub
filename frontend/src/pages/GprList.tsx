@@ -15,7 +15,7 @@ const STATUS_META: Record<GprStatus, { label: string; cls: string; icon: React.C
 export default function GprList() {
   const { data: gprs = [], isLoading } = useQuery({
     queryKey: ['gpr-list'],
-    queryFn: () => api.get<GraphPullRequest[]>('/gpr?limit=200'),
+    queryFn: () => api.get<GraphPullRequest[]>('/gpr'),
     refetchInterval: 5000,
   })
 

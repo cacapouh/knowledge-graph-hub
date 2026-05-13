@@ -191,9 +191,11 @@ def create_property(
 # ─── Object Instances ───────────────────────────────────
 
 @mcp.tool()
-def list_objects(object_type_id: int | None = None, limit: int = 500) -> str:
-    """ObjectInstance の一覧を取得する。object_type_id でフィルタ可能。"""
-    params: dict = {"limit": limit}
+def list_objects(object_type_id: int | None = None, limit: int = 0) -> str:
+    """ObjectInstance の一覧を取得する。object_type_id でフィルタ可能。limit=0 で全件。"""
+    params: dict = {}
+    if limit > 0:
+        params["limit"] = limit
     if object_type_id is not None:
         params["object_type_id"] = object_type_id
     with _client() as c:
@@ -290,9 +292,11 @@ def create_link_type(
 # ─── Link Instances ─────────────────────────────────────
 
 @mcp.tool()
-def list_links(link_type_id: int | None = None, limit: int = 2000) -> str:
-    """LinkInstance の一覧を取得する。link_type_id でフィルタ可能。"""
-    params: dict = {"limit": limit}
+def list_links(link_type_id: int | None = None, limit: int = 0) -> str:
+    """LinkInstance の一覧を取得する。link_type_id でフィルタ可能。limit=0 で全件。"""
+    params: dict = {}
+    if limit > 0:
+        params["limit"] = limit
     if link_type_id is not None:
         params["link_type_id"] = link_type_id
     with _client() as c:
@@ -367,11 +371,11 @@ def search_graph() -> str:
         lt_resp.raise_for_status()
         link_types = lt_resp.json()
 
-        obj_resp = c.get("/ontology/objects", params={"limit": 10000})
+        obj_resp = c.get("/ontology/objects")
         obj_resp.raise_for_status()
         objects = obj_resp.json()
 
-        link_resp = c.get("/ontology/links", params={"limit": 50000})
+        link_resp = c.get("/ontology/links")
         link_resp.raise_for_status()
         links = link_resp.json()
 
@@ -433,9 +437,11 @@ def propose_graph_changes(
 
 
 @mcp.tool()
-def list_gpr(status: str | None = None, limit: int = 50) -> str:
-    """GPR 一覧を取得する。status: open/merged/failed/reverted で絞り込み可。"""
-    params: dict = {"limit": limit}
+def list_gpr(status: str | None = None, limit: int = 0) -> str:
+    """GPR 一覧を取得する。status: open/merged/failed/reverted で絞り込み可。limit=0 で全件。"""
+    params: dict = {}
+    if limit > 0:
+        params["limit"] = limit
     if status:
         params["status"] = status
     with _client() as c:

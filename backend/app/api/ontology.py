@@ -29,10 +29,12 @@ router = APIRouter(prefix="/api/ontology", tags=["ontology"])
 @router.get("/object-types", response_model=list[ObjectTypeResponse])
 async def list_object_types(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1),
+    limit: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(ObjectType).order_by(ObjectType.name).offset(skip).limit(limit)
+    query = select(ObjectType).order_by(ObjectType.name).offset(skip)
+    if limit > 0:
+        query = query.limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 

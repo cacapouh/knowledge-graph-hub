@@ -73,7 +73,7 @@ export default function GprDetail() {
   const { data: allLinks = [] } = useQuery({
     queryKey: ['all-links-for-gpr'],
     enabled: needLinks || impactedObjectIds.size > 0,
-    queryFn: () => api.get<LinkInstance[]>('/ontology/links?limit=10000'),
+    queryFn: () => api.get<LinkInstance[]>('/ontology/links'),
   })
 
   // Filter links: those touching impacted objects, plus those targeted by delete_link.

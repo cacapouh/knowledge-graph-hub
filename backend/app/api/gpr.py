@@ -58,10 +58,12 @@ async def create_gpr(data: GPRCreate, db: AsyncSession = Depends(get_db)):
 @router.get("", response_model=list[GPRResponse])
 async def list_gpr(
     status: str | None = Query(None, description="Filter by status"),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(GraphPullRequest).order_by(GraphPullRequest.created_at.desc()).limit(limit)
+    query = select(GraphPullRequest).order_by(GraphPullRequest.created_at.desc())
+    if limit > 0:
+        query = query.limit(limit)
     if status:
         query = query.where(GraphPullRequest.status == status)
     result = await db.execute(query)

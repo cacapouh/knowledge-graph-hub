@@ -132,7 +132,11 @@ export default function OntologyPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => deleteObjectType.mutate(ot.id)}
+                  onClick={() => {
+                    if (window.confirm(`Object Type 「${ot.name}」 を削除しますか？\n紐づく Object Instance や Link Type も影響を受ける可能性があります。`)) {
+                      deleteObjectType.mutate(ot.id)
+                    }
+                  }}
                   className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
