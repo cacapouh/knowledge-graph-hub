@@ -152,10 +152,17 @@ export interface NeighborhoodOfIdsCondition {
   distance: number
 }
 
+export interface ExcludeTypesCondition {
+  kind: 'exclude_types'
+  object_type_ids: number[]
+  link_type_ids: number[]
+}
+
 export type ViewCondition =
   | TypeFilterCondition
   | NeighborhoodOfTypeCondition
   | NeighborhoodOfIdsCondition
+  | ExcludeTypesCondition
 
 export interface SavedView {
   id: number

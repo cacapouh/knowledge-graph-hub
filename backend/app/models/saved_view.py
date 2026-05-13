@@ -6,10 +6,13 @@ from app.database import Base
 class SavedView(Base):
     """A saved graph view (silo) with a list of node/edge selection conditions.
 
-    `conditions` is a list of dicts, OR-combined to compute the visible subgraph:
+    `conditions` is a list of dicts. Positive conditions are OR-combined; then
+    any `exclude_types` conditions subtract from the result. If only excludes
+    are present, the baseline is the full graph.
       {"kind": "type_filter",         "object_type_ids": [int], "link_type_ids": [int]}
       {"kind": "neighborhood_of_type","object_type_id": int,    "distance": int}
       {"kind": "neighborhood_of_ids", "object_ids": [int],      "distance": int}
+      {"kind": "exclude_types",       "object_type_ids": [int], "link_type_ids": [int]}
     """
     __tablename__ = "saved_views"
 

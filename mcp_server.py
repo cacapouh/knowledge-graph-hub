@@ -520,8 +520,9 @@ def create_view(
 ) -> str:
     """Saved View を新規作成する。
 
-    conditions は表示対象を絞る条件の配列で、最終的にすべての条件の OR (和集合) が
-    可視ノード/エッジになる。各要素は以下のいずれか:
+    conditions は表示対象を絞る条件の配列。包含系の条件は OR (和集合) で結合され、
+    最後に exclude_types で指定された種別が差し引かれる。包含系条件が一つも無く
+    exclude_types のみある場合は、グラフ全体から除外される動作になる。各要素は以下のいずれか:
 
       {"kind": "type_filter",
        "object_type_ids": [int, ...],   # 表示するノード種別 (空なら制約なし)
@@ -534,6 +535,10 @@ def create_view(
       {"kind": "neighborhood_of_ids",
        "object_ids": [int, ...],        # 起点ノードの ID
        "distance": 1..5}                # BFS の距離 (default 1)
+
+      {"kind": "exclude_types",
+       "object_type_ids": [int, ...],   # 結果から除外するノード種別
+       "link_type_ids":   [int, ...]}   # 結果から除外するエッジ種別
 
     例: 「Team 種別の近傍 1」+「ID 12,34 の近傍 2」のように複数条件を組合せ可能。
     """

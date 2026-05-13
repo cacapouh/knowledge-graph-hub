@@ -36,8 +36,23 @@ class NeighborhoodOfIdsCondition(BaseModel):
     distance: int = Field(default=1, ge=1, le=5)
 
 
+class ExcludeTypesCondition(BaseModel):
+    """Subtract nodes of the given object types and links of the given link types
+    from the OR-combined selection. If only exclude conditions are present, the
+    baseline is the full graph (i.e. "everything except these types").
+    """
+    kind: Literal["exclude_types"] = "exclude_types"
+    object_type_ids: list[int] = Field(default_factory=list)
+    link_type_ids: list[int] = Field(default_factory=list)
+
+
 Condition = Annotated[
-    Union[TypeFilterCondition, NeighborhoodOfTypeCondition, NeighborhoodOfIdsCondition],
+    Union[
+        TypeFilterCondition,
+        NeighborhoodOfTypeCondition,
+        NeighborhoodOfIdsCondition,
+        ExcludeTypesCondition,
+    ],
     Field(discriminator="kind"),
 ]
 

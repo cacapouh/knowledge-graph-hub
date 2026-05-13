@@ -22,24 +22,29 @@ const KIND_LABEL: Record<ConditionKind, string> = {
   type_filter: '種別で絞り込み',
   neighborhood_of_type: 'ノード種別の近傍',
   neighborhood_of_ids: '特定ノードの近傍',
+  exclude_types: '種別で除外',
 }
 
 const KIND_DESCRIPTION: Record<ConditionKind, string> = {
   type_filter: '選択した種別のノードとエッジをすべて表示',
   neighborhood_of_type: '指定種別のノード全インスタンスから距離 N まで BFS',
   neighborhood_of_ids: '指定したノード ID から距離 N まで BFS',
+  exclude_types: '選択した種別のノード・エッジを結果から除外（他に条件がなければ全体から除外）',
 }
 
 function defaultCondition(kind: ConditionKind): ViewCondition {
   if (kind === 'type_filter') return { kind, object_type_ids: [], link_type_ids: [] }
   if (kind === 'neighborhood_of_type') return { kind, object_type_id: 0, distance: 1 }
-  return { kind, object_ids: [], distance: 1 }
+  if (kind === 'neighborhood_of_ids') return { kind, object_ids: [], distance: 1 }
+  return { kind: 'exclude_types', object_type_ids: [], link_type_ids: [] }
 }
 
 function isConditionValid(c: ViewCondition): boolean {
   if (c.kind === 'type_filter') return c.object_type_ids.length > 0 || c.link_type_ids.length > 0
   if (c.kind === 'neighborhood_of_type') return c.object_type_id > 0
-  return c.object_ids.length > 0
+  if (c.kind === 'neighborhood_of_ids') return c.object_ids.length > 0
+  // exclude_types
+  return c.object_type_ids.length > 0 || c.link_type_ids.length > 0
 }
 
 export default function SavedViews() {
@@ -430,6 +435,94 @@ function ConditionCard({
           onChange={onChange}
         />
       )}
+      {condition.kind === 'exclude_types' && (
+        <ExcludeTypesEditor
+          condition={condition}
+          objectTypes={objectTypes}
+          uniqueLinkTypes={uniqueLinkTypes}
+          linkTypes={linkTypes}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  )
+}
+
+function ExcludeTypesEditor({
+  condition,
+  objectTypes,
+  uniqueLinkTypes,
+  linkTypes,
+  onChange,
+}: {
+  condition: { kind: 'exclude_types'; object_type_ids: number[]; link_type_ids: number[] }
+  objectTypes: ObjectType[]
+  uniqueLinkTypes: LinkType[]
+  linkTypes: LinkType[]
+  onChange: (next: ViewCondition) => void
+}) {
+  const selectedNode = new Set(condition.object_type_ids)
+  const selectedLink = new Set(condition.link_type_ids)
+
+  const toggleNode = (id: number) => {
+    const next = new Set(selectedNode)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange({ ...condition, object_type_ids: [...next] })
+  }
+  const linkIdsByName = (name: string) => linkTypes.filter((lt) => lt.name === name).map((lt) => lt.id)
+  const hasLinkName = (name: string) => linkIdsByName(name).some((id) => selectedLink.has(id))
+  const toggleLinkName = (name: string) => {
+    const ids = linkIdsByName(name)
+    const next = new Set(selectedLink)
+    if (ids.some((id) => next.has(id))) ids.forEach((id) => next.delete(id))
+    else ids.forEach((id) => next.add(id))
+    onChange({ ...condition, link_type_ids: [...next] })
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1">
+        ここで選んだノード種別／エッジ種別は結果から取り除かれます
+      </div>
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">除外するノード種別</div>
+        <div className="flex flex-wrap gap-1.5">
+          {objectTypes.map((ot) => (
+            <button
+              type="button"
+              key={ot.id}
+              onClick={() => toggleNode(ot.id)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium transition-colors border ${
+                selectedNode.has(ot.id)
+                  ? 'bg-red-600 text-white border-transparent shadow-sm line-through decoration-white/70'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              {ot.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">除外するエッジ種別</div>
+        <div className="flex flex-wrap gap-1.5">
+          {uniqueLinkTypes.map((lt) => (
+            <button
+              type="button"
+              key={lt.id}
+              onClick={() => toggleLinkName(lt.name)}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors border ${
+                hasLinkName(lt.name)
+                  ? 'bg-red-600 text-white border-transparent line-through decoration-white/70'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              {lt.name}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -727,6 +820,34 @@ function ConditionSummary({
         ) : (
           <span className="text-[10px] text-gray-400">(種別未選択)</span>
         )}
+      </div>
+    )
+  }
+  if (condition.kind === 'exclude_types') {
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 rounded">
+          除外
+        </span>
+        {condition.object_type_ids.map((tid) => {
+          const ot = objectTypes.find((o) => o.id === tid)
+          return ot ? (
+            <span
+              key={`ex-ot-${tid}`}
+              className="px-2 py-0.5 text-[10px] font-medium text-red-700 bg-red-50 border border-red-200 rounded-full line-through"
+            >
+              {ot.name}
+            </span>
+          ) : null
+        })}
+        {[...new Set(condition.link_type_ids.map((lid) => linkTypes.find((l) => l.id === lid)?.name).filter(Boolean))].map((name) => (
+          <span
+            key={`ex-lt-${name}`}
+            className="px-2 py-0.5 text-[10px] font-medium text-red-700 bg-red-50 border border-red-200 rounded-full line-through"
+          >
+            {name as string}
+          </span>
+        ))}
       </div>
     )
   }

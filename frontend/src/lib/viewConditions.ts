@@ -87,6 +87,20 @@ function selectForTypeFilter(
   return { nodes, links }
 }
 
+function selectForExclude(
+  cond: { object_type_ids: number[]; link_type_ids: number[] },
+  allObjects: ObjectInstance[],
+  allLinks: LinkInstance[],
+): ConditionSelection {
+  const objTypeFilter = new Set(cond.object_type_ids)
+  const linkTypeFilter = new Set(cond.link_type_ids)
+  const nodes = new Set<number>()
+  const links = new Set<number>()
+  for (const o of allObjects) if (objTypeFilter.has(o.object_type_id)) nodes.add(o.id)
+  for (const l of allLinks) if (linkTypeFilter.has(l.link_type_id)) links.add(l.id)
+  return { nodes, links }
+}
+
 export function computeConditionSelection(
   cond: ViewCondition,
   allObjects: ObjectInstance[],
@@ -108,21 +122,60 @@ export function computeConditionSelection(
     if (seeds.size === 0) return emptySelection()
     return bfsFromSeeds(seeds, allLinks, Math.max(1, Math.min(5, cond.distance)))
   }
+  if (cond.kind === 'exclude_types') {
+    return selectForExclude(cond, allObjects, allLinks)
+  }
   return emptySelection()
 }
 
-/** OR-combine all condition selections. Returns null when no conditions are present. */
+/** Combine selections: OR for positive conditions, then subtract excludes.
+ *  Returns null when no conditions are present (caller treats null as "show all").
+ *  If only exclude conditions exist, the baseline is the full graph, then excludes
+ *  are subtracted (so "[exclude X]" means "everything except X"). */
 export function computeViewSelection(
   conditions: ViewCondition[] | undefined,
   allObjects: ObjectInstance[],
   allLinks: LinkInstance[],
 ): ConditionSelection | null {
   if (!conditions || conditions.length === 0) return null
-  const merged: ConditionSelection = emptySelection()
+
+  const positive: ConditionSelection = emptySelection()
+  const excludes: ConditionSelection[] = []
+  let hasPositive = false
+
   for (const c of conditions) {
-    const sel = computeConditionSelection(c, allObjects, allLinks)
-    sel.nodes.forEach((id) => merged.nodes.add(id))
-    sel.links.forEach((id) => merged.links.add(id))
+    if (c.kind === 'exclude_types') {
+      excludes.push(computeConditionSelection(c, allObjects, allLinks))
+    } else {
+      hasPositive = true
+      const sel = computeConditionSelection(c, allObjects, allLinks)
+      sel.nodes.forEach((id) => positive.nodes.add(id))
+      sel.links.forEach((id) => positive.links.add(id))
+    }
   }
+
+  const merged: ConditionSelection = hasPositive
+    ? positive
+    : {
+        nodes: new Set(allObjects.map((o) => o.id)),
+        links: new Set(allLinks.map((l) => l.id)),
+      }
+
+  if (excludes.length > 0) {
+    for (const ex of excludes) {
+      ex.nodes.forEach((id) => merged.nodes.delete(id))
+      ex.links.forEach((id) => merged.links.delete(id))
+    }
+    // Drop any link whose endpoint was excluded — keeps the displayed subgraph consistent.
+    for (const l of allLinks) {
+      if (
+        merged.links.has(l.id) &&
+        (!merged.nodes.has(l.source_object_id) || !merged.nodes.has(l.target_object_id))
+      ) {
+        merged.links.delete(l.id)
+      }
+    }
+  }
+
   return merged
 }
